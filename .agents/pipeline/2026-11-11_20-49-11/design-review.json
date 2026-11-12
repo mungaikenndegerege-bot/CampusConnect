@@ -1,0 +1,159 @@
+{
+  "verdict": "CHANGES_REQUESTED",
+  "findings": [
+    {
+      "id": 1,
+      "severity": "HIGH",
+      "title": "Super-admin credentials from user request not reflected in design",
+      "location": "seed.py spec, render.yaml",
+      "summary": "User explicitly requested username 'Adminmungai' and password 'Mbatia2000'. Design defaults to 'admin@campusconnect.app' / 'ChangeMe123!' with no path to seed the requested credentials."
+    },
+    {
+      "id": 2,
+      "severity": "HIGH",
+      "title": "manifest.json and sw.js served at wrong paths for PWA compliance",
+      "location": "Project structure, static/ folder, AC-23, AC-24",
+      "summary": "Design places manifest.json at /static/manifest.json and sw.js at /static/sw.js. AC-23 requires /manifest.json; AC-24 requires /sw.js. Service worker at /static/sw.js only controls /static/ scope, not the whole app."
+    },
+    {
+      "id": 3,
+      "severity": "HIGH",
+      "title": "seed.py body is incompletely specified — app context wrapper missing",
+      "location": "seed.py spec, Dockerfile CMD",
+      "summary": "Design shows seed_super_admin() function but not the surrounding script that creates the app context. Without app.app_context(), running seed.py standalone raises RuntimeError. db.create_all() placement with 2 Gunicorn workers also creates a SQLite lock race."
+    },
+    {
+      "id": 4,
+      "severity": "HIGH",
+      "title": "super_admin isolation on institution-scoped endpoints is undocumented in endpoint specs",
+      "location": "dashboard.py spec, Edge Cases section",
+      "summary": "The 403-for-super_admin rule is buried in Edge Case 5 and never appears as explicit logic in any blueprint endpoint. Implementers may miss it. Needs a documented before_request guard pattern."
+    },
+    {
+      "id": 5,
+      "severity": "MEDIUM",
+      "title": "AC-20 requires HTTP 403 on deactivated-institution login but design returns 401",
+      "location": "app/auth.py login flow step 4, AC-20",
+      "summary": "Design returns 401 'Institution inactive.' but AC-20 says HTTP 403. The design and acceptance criteria conflict."
+    },
+    {
+      "id": 6,
+      "severity": "MEDIUM",
+      "title": "roles_required decorator usage ambiguity — documentation missing",
+      "location": "app/auth.py roles_required",
+      "summary": "roles_required already wraps jwt_required() internally but this is not documented. Developers may double-decorate or misuse get_jwt() outside the decorator context. Needs a docstring and usage note."
+    },
+    {
+      "id": 7,
+      "severity": "MEDIUM",
+      "title": "Library DELETE deletes DB record before disk file — crash leaves orphan files",
+      "location": "app/library.py DELETE handler",
+      "summary": "DB commit happens before os.remove(). A crash between the two leaves a file on disk with no DB record. Reversing the order (disk first, then DB) is safer because a dangling DB record is handled gracefully by the download endpoint."
+    },
+    {
+      "id": 8,
+      "severity": "MEDIUM",
+      "title": "GET /api/dashboard does not specify behaviour for lecturer/admin callers",
+      "location": "app/dashboard.py GET /api/dashboard",
+      "summary": "The 'completed' annotation is specified for student callers only. The design is silent on what lecturers and institution_admins receive for the assignments section of the dashboard response."
+    },
+    {
+      "id": 9,
+      "severity": "MEDIUM",
+      "title": "SQLite with 2 Gunicorn workers needs WAL mode and busy_timeout — not specified",
+      "location": "config.py, Dockerfile, Deployment section",
+      "summary": "Without WAL mode and a busy_timeout pragma, concurrent write requests across 2 workers will produce 'database is locked' 500 errors. This needs to be specified in config.py."
+    },
+    {
+      "id": 10,
+      "severity": "MEDIUM",
+      "title": "No endpoint to create the first institution_admin for a new institution",
+      "location": "app/admin.py super_admin routes",
+      "summary": "POST /api/admin/my/users is an institution_admin route (uses caller's institution_id). Super admin routes have no POST /api/admin/users to create users for other institutions. First institution_admin for each institution cannot be provisioned."
+    },
+    {
+      "id": 11,
+      "severity": "MEDIUM",
+      "title": "GET /api/library missing ORDER BY clause",
+      "location": "app/library.py GET handler",
+      "summary": "No ordering is defined for library file listings. Pagination over an unordered result set is non-deterministic."
+    },
+    {
+      "id": 12,
+      "severity": "MEDIUM",
+      "title": "GET /api/marketplace/items missing default sort order",
+      "location": "app/marketplace.py GET handler",
+      "summary": "Query params are defined but no ORDER BY is specified. Pagination is non-deterministic without a stable ordering."
+    },
+    {
+      "id": 13,
+      "severity": "MEDIUM",
+      "title": "price field in marketplace POST has no upper bound, type coercion rule, or infinity guard",
+      "location": "app/marketplace.py POST validation",
+      "summary": "Design says 'numeric >= 0' but does not reject strings, NaN, infinity, or values over a reasonable maximum. float('inf') would pass validation."
+    },
+    {
+      "id": 14,
+      "severity": "MEDIUM",
+      "title": "Community comment nesting validation missing error code and cascade delete spec",
+      "location": "app/community.py POST comment handler, app/models.py CommunityComment",
+      "summary": "Design validates one-level nesting but does not specify the HTTP 400 message, nor does it define cascade='all, delete-orphan' on the self-referential CommunityComment relationship for reply cleanup."
+    },
+    {
+      "id": 15,
+      "severity": "MEDIUM",
+      "title": "Lost & Found date_occurred future-date validation has no specified HTTP response or lower bound",
+      "location": "app/lostandfound.py POST validation",
+      "summary": "Design says 'not in the future' but does not specify the 400 response message or a reasonable lower bound. No code path documented for the error case."
+    },
+    {
+      "id": 16,
+      "severity": "NIT",
+      "title": "User.query.get_or_404() is deprecated in Flask-SQLAlchemy 3.x",
+      "location": "app/auth.py get_current_user()",
+      "summary": "Use db.session.get(User, user_id) or abort(404) instead."
+    },
+    {
+      "id": 17,
+      "severity": "NIT",
+      "title": "datetime.utcnow() is deprecated in Python 3.12+",
+      "location": "app/models.py all timestamp defaults",
+      "summary": "Replace default=datetime.utcnow with default=lambda: datetime.now(timezone.utc) to avoid future breakage."
+    },
+    {
+      "id": 18,
+      "severity": "NIT",
+      "title": "requirements.txt has no lock file or transitive dependency pins",
+      "location": "requirements.txt",
+      "summary": "Only direct dependencies are pinned. Consider pip-tools or a requirements.lock for reproducible builds."
+    },
+    {
+      "id": 19,
+      "severity": "NIT",
+      "title": "sw.js SHELL_ASSETS list uses a placeholder comment instead of enumerating all JS modules",
+      "location": "static/sw.js",
+      "summary": "/* all other JS modules */ is not implementable. All paths must be explicitly listed."
+    },
+    {
+      "id": 20,
+      "severity": "NIT",
+      "title": "Dockerfile CMD missing --timeout 120 that is mentioned in prose",
+      "location": "Dockerfile CMD",
+      "summary": "Design prose says '--timeout 120 is added to handle large file uploads' but the Dockerfile CMD snippet does not include it. Only render.yaml's startCommand has it."
+    },
+    {
+      "id": 21,
+      "severity": "NIT",
+      "title": "today_classes uses strftime('%a') which is locale-dependent",
+      "location": "app/dashboard.py today_abbrev calculation",
+      "summary": "On non-English locale servers, strftime('%a') returns a non-English day abbreviation that will never match the stored 'Mon'/'Tue'/etc. values. Use calendar.day_abbr[datetime.utcnow().weekday()] instead."
+    },
+    {
+      "id": 22,
+      "severity": "NIT",
+      "title": "FR-2.4 quick-link navigation buttons not addressed in dashboard.js frontend spec",
+      "location": "Frontend Architecture / dashboard.js",
+      "summary": "FR-2.4 requires quick-link buttons on the dashboard. The dashboard.js module spec only describes consuming API data. The quick-link UI is never mentioned."
+    }
+  ]
+}

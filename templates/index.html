@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#6C3CE1" />
+  <meta name="description" content="CampusConnect — Kila Kitu Made Easy" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="CampusConnect" />
+
+  <title>CampusConnect</title>
+
+  <!-- PWA Manifest served from root path (Finding 2 fix) -->
+  <link rel="manifest" href="/manifest.json" />
+  <link rel="icon" href="/static/icons/icon-192.png" type="image/png" />
+  <link rel="apple-touch-icon" href="/static/icons/icon-192.png" />
+
+  <link rel="stylesheet" href="/static/css/style.css" />
+</head>
+<body>
+  <!-- Top Bar -->
+  <header id="top-bar">
+    <div class="brand">CampusConnect</div>
+    <div class="tagline">Kila Kitu Made Easy</div>
+  </header>
+
+  <!-- Main Layout -->
+  <div id="app-layout">
+    <!-- Sidebar: visible on desktop (>768px) via CSS -->
+    <nav id="sidebar" aria-label="Main navigation"></nav>
+
+    <!-- SPA content mount point -->
+    <main id="app" role="main" aria-live="polite">
+      <div class="loading">
+        <div class="spinner"></div>
+        Starting CampusConnect…
+      </div>
+    </main>
+  </div>
+
+  <!-- Bottom Nav: visible on mobile via CSS -->
+  <nav id="bottom-nav" aria-label="Bottom navigation"></nav>
+
+  <!-- Load feature modules BEFORE app.js so registerModule() is defined -->
+  <script type="module" src="/static/js/auth.js"></script>
+  <script type="module" src="/static/js/dashboard.js"></script>
+  <script type="module" src="/static/js/timetable.js"></script>
+  <script type="module" src="/static/js/library.js"></script>
+  <script type="module" src="/static/js/announcements.js"></script>
+  <script type="module" src="/static/js/assignments.js"></script>
+  <script type="module" src="/static/js/community.js"></script>
+  <script type="module" src="/static/js/marketplace.js"></script>
+  <script type="module" src="/static/js/lostandfound.js"></script>
+  <script type="module" src="/static/js/admin.js"></script>
+
+  <!-- app.js is the router/bootstrapper — loaded last -->
+  <script type="module" src="/static/js/app.js"></script>
+
+  <!-- Service Worker registration (Finding 2: registered at /sw.js root path) -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js', { scope: '/' })
+        .catch(function(err) { console.warn('SW registration failed:', err); });
+    }
+  </script>
+</body>
+</html>
