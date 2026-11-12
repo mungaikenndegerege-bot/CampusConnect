@@ -1,68 +1,45 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="theme-color" content="#6C3CE1" />
-  <meta name="description" content="CampusConnect — Kila Kitu Made Easy" />
-  <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-  <meta name="apple-mobile-web-app-title" content="CampusConnect" />
-
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>CampusConnect</title>
-
-  <!-- PWA Manifest served from root path (Finding 2 fix) -->
-  <link rel="manifest" href="/manifest.json" />
-  <link rel="icon" href="/static/icons/icon-192.png" type="image/png" />
-  <link rel="apple-touch-icon" href="/static/icons/icon-192.png" />
-
-  <link rel="stylesheet" href="/static/css/style.css" />
+  <link rel="stylesheet" href="/static/css/style.css">
+  <link rel="manifest" href="/static/manifest.json">
+  <meta name="theme-color" content="#6C3CE1">
 </head>
 <body>
-  <!-- Top Bar -->
-  <header id="top-bar">
-    <div class="brand">CampusConnect</div>
-    <div class="tagline">Kila Kitu Made Easy</div>
-  </header>
-
-  <!-- Main Layout -->
-  <div id="app-layout">
-    <!-- Sidebar: visible on desktop (>768px) via CSS -->
-    <nav id="sidebar" aria-label="Main navigation"></nav>
-
-    <!-- SPA content mount point -->
-    <main id="app" role="main" aria-live="polite">
-      <div class="loading">
-        <div class="spinner"></div>
-        Starting CampusConnect…
+  <div id="app-shell">
+    <header id="top-bar">
+      <div class="logo-area">
+        <h1>CampusConnect</h1>
+        <p class="tagline">Kila Kitu Made Easy</p>
       </div>
-    </main>
+    </header>
+    <main id="main-content"><div class="spinner"></div></main>
+    <nav id="bottom-nav">
+      <button data-section="feed"><span class="nav-icon">&#127968;</span><span>Feed</span></button>
+      <button data-section="community"><span class="nav-icon">&#128172;</span><span>Community</span></button>
+      <button data-section="marketplace"><span class="nav-icon">&#128722;</span><span>Market</span></button>
+      <button data-section="lostandfound"><span class="nav-icon">&#128269;</span><span>Lost &amp; Found</span></button>
+      <button data-section="announcements"><span class="nav-icon">&#128226;</span><span>News</span></button>
+    </nav>
+    <div id="fab-container">
+      <button id="fab-btn" style="display:none">+ Post</button>
+    </div>
+    <div id="modal-overlay">
+      <div id="modal-box">
+        <button id="modal-close">&times;</button>
+        <div id="modal-body"></div>
+      </div>
+    </div>
+    <div id="toast-container"></div>
   </div>
-
-  <!-- Bottom Nav: visible on mobile via CSS -->
-  <nav id="bottom-nav" aria-label="Bottom navigation"></nav>
-
-  <!-- Load feature modules BEFORE app.js so registerModule() is defined -->
-  <script type="module" src="/static/js/auth.js"></script>
-  <script type="module" src="/static/js/dashboard.js"></script>
-  <script type="module" src="/static/js/timetable.js"></script>
-  <script type="module" src="/static/js/library.js"></script>
-  <script type="module" src="/static/js/announcements.js"></script>
-  <script type="module" src="/static/js/assignments.js"></script>
-  <script type="module" src="/static/js/community.js"></script>
-  <script type="module" src="/static/js/marketplace.js"></script>
-  <script type="module" src="/static/js/lostandfound.js"></script>
-  <script type="module" src="/static/js/admin.js"></script>
-
-  <!-- app.js is the router/bootstrapper — loaded last -->
-  <script type="module" src="/static/js/app.js"></script>
-
-  <!-- Service Worker registration (Finding 2: registered at /sw.js root path) -->
-  <script>
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/sw.js', { scope: '/' })
-        .catch(function(err) { console.warn('SW registration failed:', err); });
-    }
-  </script>
+  <script src="/static/js/app.js"></script>
+  <script src="/static/js/feed.js"></script>
+  <script src="/static/js/community.js"></script>
+  <script src="/static/js/marketplace.js"></script>
+  <script src="/static/js/lostandfound.js"></script>
+  <script src="/static/js/announcements.js"></script>
 </body>
 </html>

@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CampusConnect Admin</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+  <div id="admin-app">
+    <header>
+      <h1>&#9881; CampusConnect Admin</h1>
+    </header>
+    <div id="admin-login-form">
+      <div class="admin-form">
+        <h3>Admin Login</h3>
+        <div class="form-group"><label>Username</label><input type="text" id="admin-username" autocomplete="username"></div>
+        <div class="form-group"><label>Password</label><input type="password" id="admin-password" autocomplete="current-password"></div>
+        <button class="btn-primary" id="admin-login-btn">Login</button>
+        <p id="login-error" style="color:#c62828;margin-top:8px;"></p>
+      </div>
+    </div>
+    <div id="admin-dashboard" style="display:none">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+        <span style="font-weight:700;color:#6C3CE1;">Welcome, Adminmungai</span>
+        <button class="btn-danger" id="admin-logout-btn">Logout</button>
+      </div>
+      <nav class="admin-tabs">
+        <button class="admin-tab-btn active" data-tab="ads">Ads</button>
+        <button class="admin-tab-btn" data-tab="announcements">Announcements</button>
+        <button class="admin-tab-btn" data-tab="posts">Posts</button>
+        <button class="admin-tab-btn" data-tab="marketplace">Marketplace</button>
+        <button class="admin-tab-btn" data-tab="lostandfound">Lost &amp; Found</button>
+      </nav>
+      <div id="admin-tab-content"></div>
+    </div>
+  </div>
+  <script src="/static/js/admin.js"></script>
+</body>
+</html>
