@@ -1,36 +1,10 @@
-# Python
 __pycache__/
-*.py[cod]
+*.pyc
 *.pyo
-*.pyd
-.Python
-*.egg
-*.egg-info/
-dist/
-build/
-*.so
-
-# Virtual environments
+instance/
+.env
 venv/
 env/
-.venv/
-.env
-
-# SQLite database
-*.db
-*.db-shm
-*.db-wal
-
-# Uploads (ephemeral on Render free tier)
 static/uploads/*
 !static/uploads/.gitkeep
-
-# IDE
-.idea/
-.vscode/
-*.swp
-*.swo
-.DS_Store
-
-# Logs
-*.log
+campusconnect.db
