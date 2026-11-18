@@ -1,0 +1,12 @@
+{
+  "verdict": "CHANGES_REQUESTED",
+  "findings": [
+    "FAB dead code on directory landing — navigate('institutions') wires openPostForm('institutions'), which has no institutions branch and silently does nothing. Add the missing branch or exclude institutions from the FAB map on the directory view.",
+    "member_count never incremented — institution selection only writes to localStorage; InstitutionCommunity.member_count stays zero permanently, breaking the popular-institutions sort and all displayed member counts. Add a join endpoint or fall back to sorting by post_count.",
+    "Seed public university count short of spec — 32 entries present, 36 required by the task. Add the missing public universities from the CUE chartered list.",
+    "Seed national polytechnic count short of spec — 25 entries present, 33 required by the task. Source the remaining 8 from the TVET State Department registry.",
+    "Duplicate name in seed — 'Mombasa Technical Training Institute' appears twice with different categories (National Polytechnic / Technical Training Institute). The second entry will be silently skipped by the name-dedup check. Decide the correct category and remove the duplicate.",
+    "Reused abbreviations in seed — KIBU, RU, MKU, GU, and NIST each appear on two distinct institutions. No unique constraint on abbreviation means both records are inserted; abbreviation search returns both with no way to distinguish them. Assign distinct abbreviations or add a DB-level unique constraint."
+  ],
+  "reviewDoc": "c:\\Users\\user\\Documents\\NetBeansProjects\\CampusConnect\\.agents\\tasks\\institution-directory\\review.md"
+}

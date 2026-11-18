@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CampusConnect — Advertiser Portal</title>
+  <link rel="stylesheet" href="/static/css/advertiser.css">
+</head>
+<body>
+  <header class="adv-header">
+    <div class="adv-logo">
+      <a href="/" class="adv-logo-link">CampusConnect</a>
+      <span class="adv-portal-label">Advertiser Portal</span>
+    </div>
+    <div id="adv-user-bar"></div>
+  </header>
+
+  <div class="adv-shell">
+    <!-- Sidebar nav (desktop) -->
+    <nav class="adv-sidebar" id="adv-sidebar">
+      <button class="adv-nav-btn active" data-screen="dashboard">📊 Dashboard</button>
+      <button class="adv-nav-btn" data-screen="campaigns">📋 Campaigns</button>
+      <button class="adv-nav-btn" data-screen="new-campaign">➕ New Campaign</button>
+      <button class="adv-nav-btn" data-screen="settings">⚙️ Settings</button>
+    </nav>
+
+    <!-- Main content -->
+    <main id="adv-app">
+      <div class="adv-loading"><div class="adv-spinner"></div>Loading…</div>
+    </main>
+  </div>
+
+  <script src="/static/js/advertiser.js"></script>
+</body>
+</html>

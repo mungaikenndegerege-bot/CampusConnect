@@ -189,8 +189,41 @@ def get_announcements():
 
 @public_bp.route('/api/ads/active')
 def get_active_ads():
-    ads = Ad.query.filter_by(active=True).order_by(Ad.created_at.desc()).all()
-    return jsonify([ad_to_dict(a) for a in ads])
+    from datetime import date as _date
+    from app.models import Advertisement, AdCampaign
+    today = _date.today()
+    # Legacy Ad records — unchanged
+    legacy = []
+    for a in Ad.query.filter_by(active=True).order_by(Ad.created_at.desc()).all():
+        d = ad_to_dict(a)
+        d['ad_type'] = 'legacy'
+        legacy.append(d)
+    # Campaign Advertisement records
+    active_adverts = (
+        Advertisement.query
+        .join(AdCampaign, Advertisement.campaign_id == AdCampaign.id)
+        .filter(
+            Advertisement.status == 'active',
+            AdCampaign.start_date <= today,
+            AdCampaign.end_date >= today
+        )
+        .all()
+    )
+    campaign_ads = []
+    for a in active_adverts:
+        campaign_ads.append({
+            'id': a.id,
+            'title': a.title,
+            'body': a.body or '',
+            'image_path': a.image_path,
+            'link_url': a.link_url or '',
+            'active': True,
+            'click_count': 0,
+            'created_at': a.created_at.isoformat(),
+            'type': 'ad',
+            'ad_type': 'campaign',
+        })
+    return jsonify(legacy + campaign_ads)
 
 @public_bp.route('/api/ads/<int:aid>/click', methods=['POST'])
 def click_ad(aid):

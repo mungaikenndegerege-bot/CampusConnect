@@ -1,0 +1,110 @@
+{
+  "verdict": "CHANGES_REQUESTED",
+  "findings": [
+    {
+      "id": 1,
+      "severity": "HIGH",
+      "title": "check_rate_limit returns 429; design claims silent 200 drop for impression rate limit",
+      "location": "Design §3, POST /api/track/impression; app/ratelimit.py",
+      "summary": "FR-5.4 requires a silent 200 OK on rate-limit breach. The actual check_rate_limit decorator always returns 429 with an error body. These cannot both be satisfied simultaneously."
+    },
+    {
+      "id": 2,
+      "severity": "HIGH",
+      "title": "Design contradicts itself on impression rate-limit response code (200 vs 429)",
+      "location": "Design §3, POST /api/track/impression error table vs FR-5.4",
+      "summary": "The error table says 429 from decorator; FR-5.4 and the narrative say 200 silent drop. The requirement is authoritative; using @check_rate_limit as written violates it."
+    },
+    {
+      "id": 3,
+      "severity": "HIGH",
+      "title": "unique_reach recount double-counts newly added impression row due to SQLAlchemy auto-flush",
+      "location": "Design §3, POST /api/track/impression, step 7",
+      "summary": "The +1 adjustment assumes the new AdImpression row is not visible to the subsequent COUNT query, but SQLAlchemy auto-flushes before queries by default, so the row is already counted. unique_reach will be 1 too high on every new unique visitor."
+    },
+    {
+      "id": 4,
+      "severity": "HIGH",
+      "title": "Campaign list endpoint causes N+1 queries via lazy-loaded advertisement/placement relationships",
+      "location": "Design §2, GET /api/advertiser/campaigns and campaign list serialiser note",
+      "summary": "Accessing campaign.advertisements[0].placement.name in a loop over N campaigns triggers 2N additional SQL queries. The design claims this is 'not an extra query' which is incorrect. Also risks IndexError if advertisements list is empty."
+    },
+    {
+      "id": 5,
+      "severity": "HIGH",
+      "title": "advTrackClick uses event.preventDefault() which blocks fallback navigation if fetch fails",
+      "location": "Design §10, advTrackClick function",
+      "summary": "Calling event.preventDefault() on the anchor click suppresses the href fallback. If the tracking fetch fails or times out, the user's click navigates nowhere. Remove preventDefault; the href attribute provides sufficient fallback navigation."
+    },
+    {
+      "id": 6,
+      "severity": "MEDIUM",
+      "title": "require_advertiser() return value usage for status checks is unspecified",
+      "location": "Design §2, require_advertiser guard and POST /api/advertiser/campaigns",
+      "summary": "The guard returns a session object but routes that check advertiser.status must access session.advertiser (lazy load). The design does not state this pattern explicitly, leaving the implementation ambiguous."
+    },
+    {
+      "id": 7,
+      "severity": "MEDIUM",
+      "title": "placement_id from multipart/form-data is a string; integer conversion not shown",
+      "location": "Design §2, POST /api/advertiser/campaigns",
+      "summary": "request.form values are always strings. The design does not show int() conversion of placement_id before the AdPlacement.query.get() call. Without it, the lookup silently fails and returns a misleading 400."
+    },
+    {
+      "id": 8,
+      "severity": "MEDIUM",
+      "title": "loadTab loaders replacement snippet is not syntactically complete",
+      "location": "Design §12, admin.js loadTab replacement",
+      "summary": "The two-line replacement snippet lacks a closing semicolon and is split across lines in a way that could produce a syntax error if pasted verbatim. A complete, self-contained replacement should be shown."
+    },
+    {
+      "id": 9,
+      "severity": "MEDIUM",
+      "title": "AdvertiserSession.token missing index=True, causing full table scans on every authenticated request",
+      "location": "Design §1, AdvertiserSession model",
+      "summary": "Every impression and click tracking request resolves the X-Advertiser-Token header via a full table scan. AdminSession and AccountSession in models.py both have index=True on their token columns; AdvertiserSession should too."
+    },
+    {
+      "id": 10,
+      "severity": "MEDIUM",
+      "title": "CSV report day-iteration mechanism not specified; timedelta import not shown",
+      "location": "Design §2, GET /api/advertiser/campaigns/<id>/report",
+      "summary": "The design states the loop runs (end_date - start_date).days + 1 times but does not show how to generate actual date values. The timedelta import needed for start_date + timedelta(days=i) is not listed in the new file's imports."
+    },
+    {
+      "id": 11,
+      "severity": "MEDIUM",
+      "title": "Click URL validation checks '/admin' instead of FR-6.2's '/api/admin', blocking legitimate advertiser destinations",
+      "location": "Design §3, POST /api/track/click step 3; FR-6.2",
+      "summary": "Checking '/admin' in url.lower() rejects URLs like https://college.ac.ke/administration. The requirement specifies '/api/admin' as the forbidden substring. The design is broader than specified."
+    },
+    {
+      "id": 12,
+      "severity": "MEDIUM",
+      "title": "AdDailyStat has no index on campaign_id; stats endpoint query is a full table scan",
+      "location": "Design §1, AdDailyStat model; Design §2, GET /api/advertiser/campaigns/<id>/stats",
+      "summary": "The only constraint on AdDailyStat is a unique index on (advertisement_id, date). Queries filtering by campaign_id have no index support, causing full table scans as the table grows."
+    },
+    {
+      "id": 13,
+      "severity": "MEDIUM",
+      "title": "No route creates AdPayment records; admin payments tab has nothing to display or confirm",
+      "location": "Design §4, revenue and payments routes; FR-4.6, FR-4.7",
+      "summary": "GET /api/admin/payments and PUT /api/admin/payments/<id>/confirm are defined, but no code path creates AdPayment rows. The design is silent on when and how payment records come into existence."
+    },
+    {
+      "id": 14,
+      "severity": "NIT",
+      "title": "Seed code indentation context not shown",
+      "location": "Design §6, seed.py changes",
+      "summary": "The new placement seeding block must be inside the existing with app.app_context(): block. The design's snippet does not show its indentation context."
+    },
+    {
+      "id": 15,
+      "severity": "NIT",
+      "title": "escHtml on href is correct HTML practice; non-issue flagged for completeness",
+      "location": "Design §10, renderAdBanner",
+      "summary": "Using escHtml on link_url in href attributes is correct; HTML parsers decode &amp; entities in attribute values. No change needed."
+    }
+  ]
+}

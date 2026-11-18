@@ -21,6 +21,12 @@ def create_app():
     app.register_blueprint(institutions_bp)
     app.register_blueprint(admin_inst_bp)
 
+    from app.advertiser import advertiser_bp
+    app.register_blueprint(advertiser_bp)
+
+    from app.ad_tracking import tracking_bp
+    app.register_blueprint(tracking_bp)
+
     @app.route('/')
     def index():
         return render_template('index.html')
@@ -28,5 +34,10 @@ def create_app():
     @app.route('/admin')
     def admin_view():
         return render_template('admin.html')
+
+    @app.route('/advertiser')
+    @app.route('/advertiser/')
+    def advertiser_portal():
+        return render_template('advertiser.html')
 
     return app

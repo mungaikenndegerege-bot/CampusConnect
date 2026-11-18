@@ -51,7 +51,7 @@ function showDashboard() {
 
 function loadTab(tab) {
   document.querySelectorAll('.admin-tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
-  const loaders = { ads: loadAdsTab, announcements: loadAnnouncementsTab, posts: loadPostsTab, marketplace: loadMarketplaceTab, lostandfound: loadLFTab, reports: loadReportsTab, institutions: loadInstitutionsAdminTab };
+  const loaders = { ads: loadAdsTab, announcements: loadAnnouncementsTab, posts: loadPostsTab, marketplace: loadMarketplaceTab, lostandfound: loadLFTab, reports: loadReportsTab, institutions: loadInstitutionsAdminTab, advertisers: loadAdvertisersTab, adcampaigns: loadAdCampaignsTab, placements: loadPlacementsTab, revenue: loadRevenueTab, payments: loadPaymentsTab };
   if (loaders[tab]) loaders[tab]();
 }
 

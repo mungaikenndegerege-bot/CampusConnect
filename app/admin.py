@@ -2,7 +2,9 @@ import uuid
 from datetime import datetime, timedelta
 from flask import Blueprint, request, jsonify, current_app
 from app import db
-from app.models import Ad, Announcement, Post, MarketplaceItem, LostFoundItem, AdminSession, Report
+from app.models import (Ad, Announcement, Post, MarketplaceItem, LostFoundItem,
+                        AdminSession, Report,
+                        Advertiser, AdCampaign, Advertisement, AdPlacement, AdPayment, AdDailyStat)
 import os
 from werkzeug.utils import secure_filename
 
@@ -178,5 +180,192 @@ def resolve_report(rid):
         return jsonify({'error': 'Unauthorized'}), 401
     report = Report.query.get_or_404(rid)
     report.resolved = True
+    db.session.commit()
+    return jsonify({'ok': True})
+
+
+# ---- Advertiser Management ----
+
+@admin_bp.route('/api/admin/advertisers', methods=['GET'])
+def admin_list_advertisers():
+    if not require_admin():
+        return jsonify({'error': 'Unauthorized'}), 401
+    advs = Advertiser.query.order_by(Advertiser.created_at.desc()).all()
+    return jsonify([a.to_dict() for a in advs])
+
+
+@admin_bp.route('/api/admin/advertisers/<int:aid>/approve', methods=['PUT'])
+def admin_approve_advertiser(aid):
+    if not require_admin():
+        return jsonify({'error': 'Unauthorized'}), 401
+    adv = Advertiser.query.get_or_404(aid)
+    adv.status = 'approved'
+    adv.approved_at = datetime.utcnow()
+    db.session.commit()
+    return jsonify({'ok': True})
+
+
+@admin_bp.route('/api/admin/advertisers/<int:aid>/reject', methods=['PUT'])
+def admin_reject_advertiser(aid):
+    if not require_admin():
+        return jsonify({'error': 'Unauthorized'}), 401
+    adv = Advertiser.query.get_or_404(aid)
+    adv.status = 'rejected'
+    db.session.commit()
+    return jsonify({'ok': True})
+
+
+# ---- Campaign Management ----
+
+@admin_bp.route('/api/admin/campaigns', methods=['GET'])
+def admin_list_campaigns():
+    if not require_admin():
+        return jsonify({'error': 'Unauthorized'}), 401
+    campaigns = AdCampaign.query.order_by(AdCampaign.created_at.desc()).all()
+    result = []
+    for c in campaigns:
+        d = c.to_dict()
+        d['advertiser_name'] = c.advertiser.business_name if c.advertiser else ''
+        result.append(d)
+    return jsonify(result)
+
+
+def _set_campaign_status(campaign_id, new_status):
+    campaign = AdCampaign.query.get_or_404(campaign_id)
+    campaign.status = new_status
+    Advertisement.query.filter_by(campaign_id=campaign_id).update({'status': new_status})
+    db.session.commit()
+    return campaign
+
+
+@admin_bp.route('/api/admin/campaigns/<int:cid>/approve', methods=['PUT'])
+def admin_approve_campaign(cid):
+    if not require_admin():
+        return jsonify({'error': 'Unauthorized'}), 401
+    _set_campaign_status(cid, 'approved')
+    return jsonify({'ok': True})
+
+
+@admin_bp.route('/api/admin/campaigns/<int:cid>/reject', methods=['PUT'])
+def admin_reject_campaign(cid):
+    if not require_admin():
+        return jsonify({'error': 'Unauthorized'}), 401
+    _set_campaign_status(cid, 'rejected')
+    return jsonify({'ok': True})
+
+
+@admin_bp.route('/api/admin/campaigns/<int:cid>/pause', methods=['PUT'])
+def admin_pause_campaign(cid):
+    if not require_admin():
+        return jsonify({'error': 'Unauthorized'}), 401
+    _set_campaign_status(cid, 'paused')
+    return jsonify({'ok': True})
+
+
+@admin_bp.route('/api/admin/campaigns/<int:cid>/activate', methods=['PUT'])
+def admin_activate_campaign(cid):
+    if not require_admin():
+        return jsonify({'error': 'Unauthorized'}), 401
+    _set_campaign_status(cid, 'active')
+    return jsonify({'ok': True})
+
+
+# ---- Placement Management ----
+
+@admin_bp.route('/api/admin/placements', methods=['GET'])
+def admin_list_placements():
+    if not require_admin():
+        return jsonify({'error': 'Unauthorized'}), 401
+    placements = AdPlacement.query.order_by(AdPlacement.name).all()
+    return jsonify([p.to_dict() for p in placements])
+
+
+@admin_bp.route('/api/admin/placements', methods=['POST'])
+def admin_create_placement():
+    if not require_admin():
+        return jsonify({'error': 'Unauthorized'}), 401
+    d = request.get_json(silent=True) or {}
+    name = (d.get('name') or '').strip()
+    if not name:
+        return jsonify({'error': 'name is required'}), 400
+    try:
+        price = float(d.get('price_per_day', 0))
+    except (ValueError, TypeError):
+        price = 0.0
+    if price < 0:
+        return jsonify({'error': 'price_per_day must be non-negative'}), 400
+    p = AdPlacement(
+        name=name,
+        description=(d.get('description') or '').strip() or None,
+        price_per_day=price,
+        active=bool(d.get('active', True))
+    )
+    db.session.add(p)
+    db.session.commit()
+    return jsonify(p.to_dict()), 201
+
+
+@admin_bp.route('/api/admin/placements/<int:pid>', methods=['PUT'])
+def admin_update_placement(pid):
+    if not require_admin():
+        return jsonify({'error': 'Unauthorized'}), 401
+    p = AdPlacement.query.get_or_404(pid)
+    d = request.get_json(silent=True) or {}
+    if 'name' in d:
+        p.name = (d['name'] or '').strip()
+    if 'description' in d:
+        p.description = (d['description'] or '').strip() or None
+    if 'price_per_day' in d:
+        try:
+            p.price_per_day = float(d['price_per_day'])
+        except (ValueError, TypeError):
+            pass
+    if 'active' in d:
+        p.active = bool(d['active'])
+    db.session.commit()
+    return jsonify(p.to_dict())
+
+
+# ---- Revenue & Payments ----
+
+@admin_bp.route('/api/admin/revenue', methods=['GET'])
+def admin_revenue():
+    if not require_admin():
+        return jsonify({'error': 'Unauthorized'}), 401
+    confirmed_revenue = db.session.query(
+        db.func.sum(AdPayment.amount)
+    ).filter_by(status='confirmed').scalar() or 0.0
+    return jsonify({
+        'total_campaigns': AdCampaign.query.count(),
+        'confirmed_revenue': confirmed_revenue,
+        'unpaid_campaigns': AdCampaign.query.filter_by(payment_status='unpaid').count(),
+        'paid_campaigns': AdCampaign.query.filter_by(payment_status='paid').count(),
+    })
+
+
+@admin_bp.route('/api/admin/payments', methods=['GET'])
+def admin_list_payments():
+    if not require_admin():
+        return jsonify({'error': 'Unauthorized'}), 401
+    payments = AdPayment.query.order_by(AdPayment.created_at.desc()).all()
+    result = []
+    for pay in payments:
+        d = pay.to_dict()
+        d['campaign_name'] = pay.campaign.name if pay.campaign else ''
+        result.append(d)
+    return jsonify(result)
+
+
+@admin_bp.route('/api/admin/payments/<int:pid>/confirm', methods=['PUT'])
+def admin_confirm_payment(pid):
+    if not require_admin():
+        return jsonify({'error': 'Unauthorized'}), 401
+    # Fix 5: create or update AdPayment and update campaign payment_status
+    payment = AdPayment.query.get_or_404(pid)
+    payment.status = 'confirmed'
+    payment.confirmed_at = datetime.utcnow()
+    campaign = AdCampaign.query.get(payment.campaign_id)
+    if campaign:
+        campaign.payment_status = 'paid'
     db.session.commit()
     return jsonify({'ok': True})
