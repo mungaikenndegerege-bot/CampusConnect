@@ -162,6 +162,19 @@ def create_inst_post(id):
     return jsonify(post.to_dict()), 201
 
 
+@institutions_bp.route('/<int:id>/join', methods=['POST'])
+def join_institution(id):
+    inst = Institution.query.get_or_404(id)
+    comm = inst.community
+    if not comm:
+        comm = InstitutionCommunity(institution_id=inst.id)
+        db.session.add(comm)
+        db.session.flush()
+    comm.member_count = (comm.member_count or 0) + 1
+    db.session.commit()
+    return jsonify({'member_count': comm.member_count})
+
+
 @institutions_bp.route('/<int:id>/posts/<int:pid>/comments', methods=['GET'])
 def list_inst_post_comments(id, pid):
     post = InstitutionPost.query.filter_by(id=pid, institution_id=id).first_or_404()

@@ -59,6 +59,9 @@ async function renderInstitutions() {
     });
   } catch(e) {}
 
+  const fab = document.getElementById('fab-btn');
+  if (fab) fab.style.display = 'none';
+
   loadInstitutionCards(true);
 
   // Debounced search
@@ -254,7 +257,7 @@ async function openInstitutionCommunity(id) {
     // Show FAB for posting
     const fab = document.getElementById('fab-btn');
     if (fab) {
-      fab.textContent = '✏️ Post';
+      fab.textContent = '✏️ Post Here';
       fab.style.display = 'flex';
       fab.onclick = () => openInstPostForm(id);
     }
@@ -468,6 +471,7 @@ function getMyInstitution() {
 function selectMyInstitution(inst) {
   const data = { id: inst.id, name: inst.name, abbreviation: inst.abbreviation };
   localStorage.setItem('cc_my_institution', JSON.stringify(data));
+  fetch(`/api/institutions/${inst.id}/join`, { method: 'POST' }).catch(() => {});
   renderMyInstitutionBadge();
   showToast(`✅ ${inst.abbreviation || inst.name} set as your institution`, 'success');
   // Refresh the select button
