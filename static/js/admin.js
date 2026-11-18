@@ -427,3 +427,282 @@ function openModal(html) {
   overlay.classList.add('open');
   overlay.style.display = 'flex';
 }
+
+// ================================================================
+//  ADVERTISERS TAB
+// ================================================================
+async function loadAdvertisersTab() {
+  const c = document.getElementById('admin-tab-content');
+  c.innerHTML = '<div>Loading advertisers…</div>';
+  const data = await adminApi('GET', '/api/admin/advertisers').catch(() => ({ advertisers: [] }));
+  const advertisers = data.advertisers || [];
+  const counts = { pending: 0, approved: 0, rejected: 0 };
+  advertisers.forEach(a => { if (counts[a.status] !== undefined) counts[a.status]++; });
+
+  let html = `
+    <div style="display:flex;gap:12px;margin-bottom:20px;flex-wrap:wrap">
+      <div style="background:#fef3c7;border:1px solid #fcd34d;border-radius:8px;padding:14px 20px;min-width:120px">
+        <div style="font-size:.72rem;text-transform:uppercase;color:#92400e;margin-bottom:4px">Pending</div>
+        <div style="font-size:1.6rem;font-weight:800;color:#92400e">${counts.pending}</div>
+      </div>
+      <div style="background:#d1fae5;border:1px solid #6ee7b7;border-radius:8px;padding:14px 20px;min-width:120px">
+        <div style="font-size:.72rem;text-transform:uppercase;color:#065f46;margin-bottom:4px">Approved</div>
+        <div style="font-size:1.6rem;font-weight:800;color:#065f46">${counts.approved}</div>
+      </div>
+      <div style="background:#fee2e2;border:1px solid #fca5a5;border-radius:8px;padding:14px 20px;min-width:120px">
+        <div style="font-size:.72rem;text-transform:uppercase;color:#991b1b;margin-bottom:4px">Rejected</div>
+        <div style="font-size:1.6rem;font-weight:800;color:#991b1b">${counts.rejected}</div>
+      </div>
+    </div>
+    <h3 style="margin-bottom:12px">All Advertisers (${advertisers.length})</h3>
+  `;
+
+  if (!advertisers.length) { html += '<p style="color:#9ca3af">No advertiser applications yet.</p>'; c.innerHTML = html; return; }
+
+  html += `<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:.85rem">
+    <thead><tr style="background:#f3f4f6">
+      <th style="padding:10px;text-align:left">Business</th>
+      <th style="padding:10px;text-align:left">Contact</th>
+      <th style="padding:10px;text-align:left">Email</th>
+      <th style="padding:10px;text-align:left">Status</th>
+      <th style="padding:10px;text-align:left">Applied</th>
+      <th style="padding:10px;text-align:left">Actions</th>
+    </tr></thead><tbody>`;
+
+  advertisers.forEach(a => {
+    const statusColor = { pending: '#92400e', approved: '#065f46', rejected: '#991b1b', suspended: '#6b7280' };
+    const statusBg = { pending: '#fef3c7', approved: '#d1fae5', rejected: '#fee2e2', suspended: '#f3f4f6' };
+    html += `<tr style="border-bottom:1px solid #e5e7eb">
+      <td style="padding:10px"><strong>${escHtml(a.business_name)}</strong>${a.website ? `<br><a href="${escHtml(a.website)}" target="_blank" style="font-size:.78rem;color:#6C3CE1">${escHtml(a.website)}</a>` : ''}</td>
+      <td style="padding:10px">${escHtml(a.contact_name)}</td>
+      <td style="padding:10px">${escHtml(a.email)}<br><small style="color:#9ca3af">${escHtml(a.phone||'')}</small></td>
+      <td style="padding:10px"><span style="background:${statusBg[a.status]||'#f3f4f6'};color:${statusColor[a.status]||'#374151'};padding:3px 10px;border-radius:20px;font-size:.75rem;font-weight:700">${a.status}</span></td>
+      <td style="padding:10px;font-size:.8rem;color:#9ca3af">${new Date(a.created_at).toLocaleDateString()}</td>
+      <td style="padding:10px;white-space:nowrap">
+        ${a.status === 'pending' ? `
+          <button class="btn-success" style="font-size:.78rem;padding:5px 10px" onclick="approveAdvertiser(${a.id})">✅ Approve</button>
+          <button class="btn-danger" style="font-size:.78rem;padding:5px 10px;margin-left:4px" onclick="rejectAdvertiser(${a.id})">❌ Reject</button>
+        ` : a.status === 'approved' ? `
+          <button class="btn-warning" style="font-size:.78rem;padding:5px 10px" onclick="rejectAdvertiser(${a.id})">Suspend</button>
+        ` : `
+          <button class="btn-success" style="font-size:.78rem;padding:5px 10px" onclick="approveAdvertiser(${a.id})">Re-approve</button>
+        `}
+      </td>
+    </tr>`;
+    if (a.description) html += `<tr style="border-bottom:1px solid #e5e7eb"><td colspan="6" style="padding:4px 10px 10px;font-size:.8rem;color:#6b7280;font-style:italic">About: ${escHtml(a.description)}</td></tr>`;
+  });
+  html += '</tbody></table></div>';
+  c.innerHTML = html;
+}
+
+async function approveAdvertiser(id) {
+  if (!confirm('Approve this advertiser? They will be notified and can create campaigns.')) return;
+  try { await adminApi('PUT', `/api/admin/advertisers/${id}/approve`); loadAdvertisersTab(); }
+  catch(e) { alert('Error: ' + JSON.stringify((e&&e.data)||e)); }
+}
+async function rejectAdvertiser(id) {
+  if (!confirm('Reject/suspend this advertiser?')) return;
+  try { await adminApi('PUT', `/api/admin/advertisers/${id}/reject`); loadAdvertisersTab(); }
+  catch(e) { alert('Error: ' + JSON.stringify((e&&e.data)||e)); }
+}
+
+// ================================================================
+//  AD CAMPAIGNS TAB
+// ================================================================
+async function loadAdCampaignsTab() {
+  const c = document.getElementById('admin-tab-content');
+  c.innerHTML = '<div>Loading campaigns…</div>';
+  const data = await adminApi('GET', '/api/admin/campaigns').catch(() => ({ campaigns: [] }));
+  const campaigns = data.campaigns || [];
+
+  let html = `<h3 style="margin-bottom:12px">All Campaigns (${campaigns.length})</h3>`;
+  if (!campaigns.length) { html += '<p style="color:#9ca3af">No campaigns submitted yet.</p>'; c.innerHTML = html; return; }
+
+  html += `<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:.85rem">
+    <thead><tr style="background:#f3f4f6">
+      <th style="padding:10px;text-align:left">Campaign</th>
+      <th style="padding:10px;text-align:left">Advertiser</th>
+      <th style="padding:10px;text-align:left">Status</th>
+      <th style="padding:10px;text-align:left">Dates</th>
+      <th style="padding:10px;text-align:left">Budget</th>
+      <th style="padding:10px;text-align:left">Payment</th>
+      <th style="padding:10px;text-align:left">Actions</th>
+    </tr></thead><tbody>`;
+
+  campaigns.forEach(camp => {
+    const statusColor = { pending:'#92400e', approved:'#1e40af', active:'#065f46', paused:'#374151', rejected:'#991b1b', completed:'#3730a3' };
+    const statusBg = { pending:'#fef3c7', approved:'#dbeafe', active:'#d1fae5', paused:'#f3f4f6', rejected:'#fee2e2', completed:'#e0e7ff' };
+    html += `<tr style="border-bottom:1px solid #e5e7eb">
+      <td style="padding:10px"><strong>${escHtml(camp.name)}</strong>${camp.ad_title ? `<br><small style="color:#9ca3af">${escHtml(camp.ad_title)}</small>` : ''}</td>
+      <td style="padding:10px">${escHtml(camp.advertiser_name||'—')}</td>
+      <td style="padding:10px"><span style="background:${statusBg[camp.status]||'#f3f4f6'};color:${statusColor[camp.status]||'#374151'};padding:3px 10px;border-radius:20px;font-size:.75rem;font-weight:700">${camp.status}</span></td>
+      <td style="padding:10px;font-size:.8rem">${camp.start_date||'—'} → ${camp.end_date||'—'}</td>
+      <td style="padding:10px">KSh ${Number(camp.total_budget||0).toLocaleString()}</td>
+      <td style="padding:10px;font-size:.8rem">${camp.payment_status||'unpaid'}</td>
+      <td style="padding:10px;white-space:nowrap;display:flex;flex-wrap:wrap;gap:4px">
+        ${camp.status === 'pending' ? `
+          <button class="btn-success" style="font-size:.75rem;padding:4px 8px" onclick="approveCampaign(${camp.id})">✅ Approve</button>
+          <button class="btn-danger" style="font-size:.75rem;padding:4px 8px" onclick="rejectCampaign(${camp.id})">❌ Reject</button>
+        ` : ''}
+        ${camp.status === 'approved' ? `<button class="btn-success" style="font-size:.75rem;padding:4px 8px" onclick="activateCampaign(${camp.id})">▶ Activate</button>` : ''}
+        ${camp.status === 'active' ? `<button class="btn-warning" style="font-size:.75rem;padding:4px 8px" onclick="pauseCampaign(${camp.id})">⏸ Pause</button>` : ''}
+        ${camp.status === 'paused' ? `<button class="btn-success" style="font-size:.75rem;padding:4px 8px" onclick="activateCampaign(${camp.id})">▶ Resume</button>` : ''}
+      </td>
+    </tr>`;
+    if (camp.ad_link_url) html += `<tr style="border-bottom:1px solid #e5e7eb"><td colspan="7" style="padding:4px 10px 8px;font-size:.78rem;color:#6b7280">Link: <a href="${escHtml(camp.ad_link_url)}" target="_blank" style="color:#6C3CE1">${escHtml(camp.ad_link_url)}</a></td></tr>`;
+  });
+  html += '</tbody></table></div>';
+  c.innerHTML = html;
+}
+
+async function approveCampaign(id) {
+  if (!confirm('Approve this campaign? It will go live on the scheduled start date.')) return;
+  try { await adminApi('PUT', `/api/admin/campaigns/${id}/approve`); loadAdCampaignsTab(); }
+  catch(e) { alert('Error: ' + JSON.stringify((e&&e.data)||e)); }
+}
+async function rejectCampaign(id) {
+  if (!confirm('Reject this campaign?')) return;
+  try { await adminApi('PUT', `/api/admin/campaigns/${id}/reject`); loadAdCampaignsTab(); }
+  catch(e) { alert('Error: ' + JSON.stringify((e&&e.data)||e)); }
+}
+async function activateCampaign(id) {
+  try { await adminApi('PUT', `/api/admin/campaigns/${id}/activate`); loadAdCampaignsTab(); }
+  catch(e) { alert('Error: ' + JSON.stringify((e&&e.data)||e)); }
+}
+async function pauseCampaign(id) {
+  try { await adminApi('PUT', `/api/admin/campaigns/${id}/pause`); loadAdCampaignsTab(); }
+  catch(e) { alert('Error: ' + JSON.stringify((e&&e.data)||e)); }
+}
+
+// ================================================================
+//  PLACEMENTS TAB
+// ================================================================
+async function loadPlacementsTab() {
+  const c = document.getElementById('admin-tab-content');
+  c.innerHTML = '<div>Loading placements…</div>';
+  const data = await adminApi('GET', '/api/admin/placements').catch(() => ({ placements: [] }));
+  const placements = data.placements || [];
+
+  let html = `
+    <div class="admin-form" style="margin-bottom:20px">
+      <h3>Add Placement</h3>
+      <div class="form-group"><label>Name *</label><input id="pl-name" type="text" placeholder="e.g. Homepage Banner"></div>
+      <div class="form-group"><label>Description</label><textarea id="pl-desc" rows="2"></textarea></div>
+      <div class="form-group"><label>Price per Day (KSh) *</label><input id="pl-price" type="number" min="0" step="1" placeholder="500"></div>
+      <button class="btn-primary" onclick="createPlacement()">Add Placement</button>
+    </div>
+    <h3 style="margin-bottom:12px">Active Placements (${placements.length})</h3>
+  `;
+  placements.forEach(p => {
+    html += `<div class="admin-item">
+      <div class="admin-item-info">
+        <strong>${escHtml(p.name)}</strong>
+        <small>${escHtml(p.description||'')}</small>
+        <small>KSh ${Number(p.price_per_day||0).toLocaleString()} / day &bull; ${p.active ? 'Active' : 'Inactive'}</small>
+      </div>
+      <div class="admin-item-actions">
+        <button class="btn-warning" style="font-size:.78rem;padding:4px 8px" onclick="editPlacementPrice(${p.id}, ${p.price_per_day})">Edit Price</button>
+        <button class="${p.active ? 'btn-danger' : 'btn-success'}" style="font-size:.78rem;padding:4px 8px" onclick="togglePlacement(${p.id}, ${!p.active})">${p.active ? 'Deactivate' : 'Activate'}</button>
+      </div>
+    </div>`;
+  });
+  c.innerHTML = html;
+}
+
+async function createPlacement() {
+  const name = document.getElementById('pl-name').value.trim();
+  const desc = document.getElementById('pl-desc').value.trim();
+  const price = parseFloat(document.getElementById('pl-price').value) || 0;
+  if (!name) { alert('Name required'); return; }
+  try { await adminApi('POST', '/api/admin/placements', { name, description: desc, price_per_day: price }); loadPlacementsTab(); }
+  catch(e) { alert('Error: ' + JSON.stringify((e&&e.data)||e)); }
+}
+async function editPlacementPrice(id, currentPrice) {
+  const newPrice = prompt(`New price per day (KSh)? Current: ${currentPrice}`, currentPrice);
+  if (newPrice === null || isNaN(parseFloat(newPrice))) return;
+  try { await adminApi('PUT', `/api/admin/placements/${id}`, { price_per_day: parseFloat(newPrice) }); loadPlacementsTab(); }
+  catch(e) { alert('Error'); }
+}
+async function togglePlacement(id, active) {
+  try { await adminApi('PUT', `/api/admin/placements/${id}`, { active }); loadPlacementsTab(); }
+  catch(e) { alert('Error'); }
+}
+
+// ================================================================
+//  REVENUE TAB
+// ================================================================
+async function loadRevenueTab() {
+  const c = document.getElementById('admin-tab-content');
+  c.innerHTML = '<div>Loading revenue…</div>';
+  const data = await adminApi('GET', '/api/admin/revenue').catch(() => ({}));
+  const r = data.revenue || data || {};
+  c.innerHTML = `
+    <h3 style="margin-bottom:16px">💰 Platform Revenue</h3>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;margin-bottom:24px">
+      <div style="background:#d1fae5;border:1px solid #6ee7b7;border-radius:8px;padding:16px">
+        <div style="font-size:.72rem;text-transform:uppercase;color:#065f46">Total Revenue</div>
+        <div style="font-size:1.6rem;font-weight:800;color:#065f46">KSh ${Number(r.total_revenue||0).toLocaleString()}</div>
+      </div>
+      <div style="background:#dbeafe;border:1px solid #93c5fd;border-radius:8px;padding:16px">
+        <div style="font-size:.72rem;text-transform:uppercase;color:#1e40af">Paid</div>
+        <div style="font-size:1.6rem;font-weight:800;color:#1e40af">KSh ${Number(r.paid||0).toLocaleString()}</div>
+      </div>
+      <div style="background:#fef3c7;border:1px solid #fcd34d;border-radius:8px;padding:16px">
+        <div style="font-size:.72rem;text-transform:uppercase;color:#92400e">Pending</div>
+        <div style="font-size:1.6rem;font-weight:800;color:#92400e">KSh ${Number(r.pending||0).toLocaleString()}</div>
+      </div>
+      <div style="background:#f3f4f6;border:1px solid #e5e7eb;border-radius:8px;padding:16px">
+        <div style="font-size:.72rem;text-transform:uppercase;color:#374151">Total Campaigns</div>
+        <div style="font-size:1.6rem;font-weight:800;color:#374151">${r.total_campaigns||0}</div>
+      </div>
+    </div>
+  `;
+}
+
+// ================================================================
+//  PAYMENTS TAB
+// ================================================================
+async function loadPaymentsTab() {
+  const c = document.getElementById('admin-tab-content');
+  c.innerHTML = '<div>Loading payments…</div>';
+  const data = await adminApi('GET', '/api/admin/payments').catch(() => ({ payments: [] }));
+  const payments = data.payments || [];
+
+  let html = `<h3 style="margin-bottom:12px">Payments (${payments.length})</h3>`;
+  if (!payments.length) { html += '<p style="color:#9ca3af">No payment records yet.</p>'; c.innerHTML = html; return; }
+
+  html += `<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:.85rem">
+    <thead><tr style="background:#f3f4f6">
+      <th style="padding:10px;text-align:left">Campaign</th>
+      <th style="padding:10px;text-align:left">Advertiser</th>
+      <th style="padding:10px;text-align:left">Amount</th>
+      <th style="padding:10px;text-align:left">Method</th>
+      <th style="padding:10px;text-align:left">Reference</th>
+      <th style="padding:10px;text-align:left">Status</th>
+      <th style="padding:10px;text-align:left">Actions</th>
+    </tr></thead><tbody>`;
+
+  payments.forEach(p => {
+    const statusColor = { pending:'#92400e', confirmed:'#065f46', refunded:'#991b1b' };
+    const statusBg = { pending:'#fef3c7', confirmed:'#d1fae5', refunded:'#fee2e2' };
+    html += `<tr style="border-bottom:1px solid #e5e7eb">
+      <td style="padding:10px">${escHtml(p.campaign_name||'Campaign #'+p.campaign_id)}</td>
+      <td style="padding:10px">${escHtml(p.advertiser_name||'—')}</td>
+      <td style="padding:10px;font-weight:700">KSh ${Number(p.amount||0).toLocaleString()}</td>
+      <td style="padding:10px">${escHtml(p.payment_method||'—')}</td>
+      <td style="padding:10px;font-size:.8rem;color:#6b7280">${escHtml(p.reference||'—')}</td>
+      <td style="padding:10px"><span style="background:${statusBg[p.status]||'#f3f4f6'};color:${statusColor[p.status]||'#374151'};padding:3px 10px;border-radius:20px;font-size:.75rem;font-weight:700">${p.status}</span></td>
+      <td style="padding:10px">
+        ${p.status === 'pending' ? `<button class="btn-success" style="font-size:.78rem;padding:4px 10px" onclick="confirmPayment(${p.id})">✅ Confirm</button>` : ''}
+      </td>
+    </tr>`;
+  });
+  html += '</tbody></table></div>';
+  c.innerHTML = html;
+}
+
+async function confirmPayment(id) {
+  const ref = prompt('Enter payment reference / M-Pesa code (optional):') || '';
+  try { await adminApi('PUT', `/api/admin/payments/${id}/confirm`, { reference: ref }); loadPaymentsTab(); }
+  catch(e) { alert('Error: ' + JSON.stringify((e&&e.data)||e)); }
+}
