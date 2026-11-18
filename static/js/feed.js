@@ -63,6 +63,8 @@ async function openDetailModal(id, section) {
           </div>
           <h3 style="margin:12px 0 6px">${escHtml(post.title)}</h3>
           <p style="color:#374151;line-height:1.6">${escHtml(post.body)}</p>
+          ${post.file_url && post.file_type === 'image' ? `<img src="${escHtml(post.file_url)}" style="width:100%;max-height:260px;object-fit:cover;border-radius:8px;margin-top:8px">` : ''}
+          ${post.file_url && post.file_type === 'file' ? `<a href="${escHtml(post.file_url)}" target="_blank" style="color:#6C3CE1;font-size:.9rem">&#128196; View Attachment</a>` : ''}
           <div class="card-meta" style="margin-top:10px">
             <span class="badge">${escHtml(post.topic || 'General')}</span>
           </div>
@@ -157,6 +159,8 @@ function renderPostCard(p) {
     </div>
     <div class="card-title">${escHtml(p.title)}</div>
     <div class="card-body">${escHtml(p.body)}</div>
+    ${p.file_url && p.file_type === 'image' ? `<img src="${escHtml(p.file_url)}" style="width:100%;max-height:200px;object-fit:cover;border-radius:8px;margin-top:8px">` : ''}
+    ${p.file_url && p.file_type === 'file' ? `<a href="${escHtml(p.file_url)}" target="_blank" style="color:#6C3CE1;font-size:.85rem">&#128196; View Attachment</a>` : ''}
     <div class="card-meta"><span class="badge">${escHtml(p.topic || 'General')}</span><span class="badge badge-accent">Community</span><span style="font-size:0.75rem;color:#9ca3af;margin-left:auto">Tap to read &amp; comment →</span></div>
     <div style="margin-top:6px;text-align:right"><button class="report-btn" onclick="event.stopPropagation();openReportModal('post',${p.id})" style="background:none;border:none;color:#9ca3af;font-size:0.75rem;cursor:pointer;padding:2px 4px">🚩 Report</button></div>
   </div>`;

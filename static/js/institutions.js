@@ -328,6 +328,8 @@ function renderInstPostCard(post, inst) {
       </div>
       <div class="card-title">${escHtml(post.title)}</div>
       <div class="card-body">${escHtml(preview)}</div>
+      ${post.file_url && post.file_type === 'image' ? `<img src="${escHtml(post.file_url)}" style="width:100%;max-height:200px;object-fit:cover;border-radius:8px;margin-top:8px">` : ''}
+      ${post.file_url && post.file_type === 'file' ? `<a href="${escHtml(post.file_url)}" target="_blank" style="color:#6C3CE1;font-size:.85rem">&#128196; View Attachment</a>` : ''}
       <div class="card-meta" style="margin-top:8px">
         <span style="font-size:0.78rem;color:#666">👤 ${escHtml(post.poster_name)}</span>
         <span style="font-size:0.78rem;color:#9ca3af;margin-left:auto">${timeAgo(post.created_at)}</span>
@@ -353,6 +355,8 @@ async function openInstPostDetail(post, inst) {
         <span class="badge" style="margin-bottom:8px;display:inline-block">${escHtml(post.topic || 'General')}</span>
         <h3 style="margin:8px 0 6px">${escHtml(post.title)}</h3>
         <p style="color:#374151;line-height:1.6">${escHtml(post.body)}</p>
+        ${post.file_url && post.file_type === 'image' ? `<img src="${escHtml(post.file_url)}" style="width:100%;max-height:260px;object-fit:cover;border-radius:8px;margin-top:8px">` : ''}
+        ${post.file_url && post.file_type === 'file' ? `<a href="${escHtml(post.file_url)}" target="_blank" style="color:#6C3CE1;font-size:.9rem">&#128196; View Attachment</a>` : ''}
         ${post.poster_contact ? `<p style="font-size:0.85rem;color:#666;margin-top:6px">📞 ${escHtml(post.poster_contact)}</p>` : ''}
         <hr style="margin:14px 0;border:none;border-top:1px solid #e5e7eb">
         <h4 style="margin-bottom:10px">💬 Comments (${comments.length})</h4>
@@ -410,6 +414,7 @@ function openInstPostForm(institutionId) {
           <option>Other</option>
         </select>
       </div>
+      <div class="form-group"><label style="font-size:.8rem;color:#9ca3af;margin-top:4px">&#128206; Attach image or file (optional, max 10MB)<input type="file" id="ip-attachment" accept=".jpg,.jpeg,.png,.webp,.gif,.pdf,.doc,.docx" style="margin-top:4px;display:block"></label></div>
       <button id="ip-submit" class="btn-primary">Post</button>
     </div>
   `);
@@ -423,13 +428,30 @@ function openInstPostForm(institutionId) {
       showToast('Name, title, and body are required', 'error');
       return;
     }
+    const fileInput = document.getElementById('ip-attachment');
+    const file = fileInput && fileInput.files && fileInput.files[0];
     try {
-      const res = await fetch(`/api/institutions/${institutionId}/posts`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ poster_name, title, body, topic, poster_contact: poster_contact || undefined })
-      });
-      if (!res.ok) throw new Error();
+      if (file) {
+        const fd = new FormData();
+        fd.append('poster_name', poster_name);
+        fd.append('title', title);
+        fd.append('body', body);
+        fd.append('topic', topic);
+        if (poster_contact) fd.append('poster_contact', poster_contact);
+        fd.append('attachment', file);
+        const res = await fetch(`/api/institutions/${institutionId}/posts`, {
+          method: 'POST',
+          body: fd
+        });
+        if (!res.ok) throw new Error();
+      } else {
+        const res = await fetch(`/api/institutions/${institutionId}/posts`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ poster_name, title, body, topic, poster_contact: poster_contact || undefined })
+        });
+        if (!res.ok) throw new Error();
+      }
       showToast('Post created!', 'success');
       closeModal();
       instState.postPage = 1;

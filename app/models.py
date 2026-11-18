@@ -12,6 +12,8 @@ class Post(db.Model):
     topic = db.Column(db.String(50), default='General')
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     deleted = db.Column(db.Boolean, default=False)
+    file_path = db.Column(db.String(300), nullable=True)
+    file_type = db.Column(db.String(20), nullable=True)
     comments = db.relationship('Comment', backref='post', lazy=True)
 
 class Comment(db.Model):
@@ -169,6 +171,8 @@ class InstitutionPost(db.Model):
     body = db.Column(db.Text, nullable=False)
     topic = db.Column(db.String(50), default='General')
     deleted = db.Column(db.Boolean, default=False)
+    file_path = db.Column(db.String(300), nullable=True)
+    file_type = db.Column(db.String(20), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     def to_dict(self):
@@ -178,6 +182,8 @@ class InstitutionPost(db.Model):
             'poster_name': self.poster_name, 'poster_contact': self.poster_contact,
             'title': self.title, 'body': self.body, 'topic': self.topic,
             'deleted': self.deleted,
+            'file_url': f'/api/uploads/{self.file_path}' if self.file_path else None,
+            'file_type': self.file_type,
             'created_at': self.created_at.isoformat() if self.created_at else None
         }
 

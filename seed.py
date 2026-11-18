@@ -3,6 +3,23 @@ app = create_app()
 with app.app_context():
     db.create_all()
     print('Database tables created successfully.')
+    # Idempotent column additions for post and institution_posts tables
+    import sqlalchemy as _sa
+    _engine = db.engine
+    _inspector = _sa.inspect(_engine)
+
+    def _add_col_if_missing(table, col_name, col_def):
+        cols = [c['name'] for c in _inspector.get_columns(table)]
+        if col_name not in cols:
+            with _engine.connect() as _conn:
+                _conn.execute(_sa.text(f'ALTER TABLE {table} ADD COLUMN {col_def}'))
+                _conn.commit()
+            print(f'Added column {col_name} to {table}')
+
+    _add_col_if_missing('post', 'file_path', 'file_path VARCHAR(300)')
+    _add_col_if_missing('post', 'file_type', 'file_type VARCHAR(20)')
+    _add_col_if_missing('institution_posts', 'file_path', 'file_path VARCHAR(300)')
+    _add_col_if_missing('institution_posts', 'file_type', 'file_type VARCHAR(20)')
     from app.institutions_seed import seed_institutions
     seed_institutions()
     from app.models import AdPlacement

@@ -44,6 +44,8 @@ function renderCommunityCard(p) {
     </div>
     <div class="card-title">${escHtml(p.title)}</div>
     <div class="card-body">${escHtml(p.body)}</div>
+    ${p.file_url && p.file_type === 'image' ? `<img src="${escHtml(p.file_url)}" style="width:100%;max-height:200px;object-fit:cover;border-radius:8px;margin-top:8px">` : ''}
+    ${p.file_url && p.file_type === 'file' ? `<a href="${escHtml(p.file_url)}" target="_blank" style="color:#6C3CE1;font-size:.85rem">&#128196; View Attachment</a>` : ''}
     <div class="card-meta"><span class="badge">${escHtml(p.topic || 'General')}</span></div>
     <div class="card-actions">
       <button class="btn-edit" onclick="editPost(${p.id})">&#9998;&#65039; Edit</button>
@@ -96,6 +98,7 @@ function openCommunityForm() {
     <div class="form-group"><label>Topic</label><select id="cf-topic"><option>General</option><option>Academic</option><option>Study Groups</option><option>Q&amp;A</option></select></div>
     <div class="form-group"><label>Title *</label><input type="text" id="cf-title" placeholder="Post title"></div>
     <div class="form-group"><label>Message *</label><textarea id="cf-body" placeholder="What's on your mind?"></textarea></div>
+    <div class="form-group"><label style="font-size:.8rem;color:#9ca3af;margin-top:4px">&#128206; Attach image or file (optional, max 10MB)<input type="file" id="post-attachment" accept=".jpg,.jpeg,.png,.webp,.gif,.pdf,.doc,.docx" style="margin-top:4px;display:block"></label></div>
     <button class="btn-primary" onclick="submitCommunityPost()">Post</button>`);
 }
 
@@ -106,8 +109,21 @@ async function submitCommunityPost() {
   const title = document.getElementById('cf-title').value.trim();
   const body = document.getElementById('cf-body').value.trim();
   if (!name || !title || !body) { showToast('Name, title and message are required.', 'error'); return; }
+  const fileInput = document.getElementById('post-attachment');
+  const file = fileInput && fileInput.files && fileInput.files[0];
   try {
-    await api('POST', '/api/posts', { poster_name: name, poster_contact: contact, topic, title, body });
+    if (file) {
+      const fd = new FormData();
+      fd.append('poster_name', name);
+      fd.append('poster_contact', contact);
+      fd.append('topic', topic);
+      fd.append('title', title);
+      fd.append('body', body);
+      fd.append('attachment', file);
+      await api('POST', '/api/posts', fd, true);
+    } else {
+      await api('POST', '/api/posts', { poster_name: name, poster_contact: contact, topic, title, body });
+    }
     closeModal();
     showToast('Post published!', 'success');
     renderCommunity();

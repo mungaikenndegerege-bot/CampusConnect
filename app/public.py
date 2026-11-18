@@ -3,7 +3,7 @@ from flask import Blueprint, request, jsonify, current_app, send_from_directory
 from werkzeug.utils import secure_filename
 from datetime import datetime
 from app import db
-from app.models import Post, Comment, MarketplaceItem, LostFoundItem, Announcement, Ad, Report
+from app.models import Post, Comment, MarketplaceItem, LostFoundItem, Announcement, Ad, Report, AdminSession
 from app.ratelimit import check_rate_limit
 
 public_bp = Blueprint('public_bp', __name__)
@@ -25,7 +25,9 @@ def post_to_dict(p):
     return {'id': p.id, 'poster_name': p.poster_name, 'poster_contact': p.poster_contact,
             'title': p.title, 'body': p.body, 'topic': p.topic,
             'created_at': p.created_at.isoformat(), 'section': 'community',
-            'comment_count': len(p.comments) if p.comments else 0}
+            'comment_count': len(p.comments) if p.comments else 0,
+            'file_url': f'/api/uploads/{p.file_path}' if p.file_path else None,
+            'file_type': p.file_type}
 
 def market_to_dict(m):
     return {'id': m.id, 'poster_name': m.poster_name, 'poster_contact': m.poster_contact,
@@ -69,12 +71,38 @@ def get_posts():
 @public_bp.route('/api/posts', methods=['POST'])
 @check_rate_limit(5, 3600)
 def create_post():
-    d = request.get_json()
-    if not d or not d.get('poster_name') or not d.get('title') or not d.get('body'):
+    import uuid as _uuid
+    file_path = None
+    file_type = None
+    if request.files and 'attachment' in request.files:
+        f = request.files['attachment']
+        if f and f.filename:
+            ext = f.filename.rsplit('.', 1)[-1].lower() if '.' in f.filename else ''
+            image_exts = {'jpg', 'jpeg', 'png', 'webp', 'gif'}
+            file_exts = {'pdf', 'doc', 'docx'}
+            f.seek(0, 2)
+            size = f.tell()
+            f.seek(0)
+            if ext in image_exts and size <= 5 * 1024 * 1024:
+                filename = _uuid.uuid4().hex + '.' + ext
+                f.save(os.path.join(current_app.config['UPLOAD_FOLDER'], filename))
+                file_path = filename
+                file_type = 'image'
+            elif ext in file_exts and size <= 10 * 1024 * 1024:
+                filename = _uuid.uuid4().hex + '.' + ext
+                f.save(os.path.join(current_app.config['UPLOAD_FOLDER'], filename))
+                file_path = filename
+                file_type = 'file'
+        d = request.form
+    else:
+        d = request.get_json() or {}
+    if not d.get('poster_name') or not d.get('title') or not d.get('body'):
         return jsonify({'error': 'Missing required fields'}), 400
-    p = Post(poster_name=d['poster_name'], poster_contact=d.get('poster_contact',''),
-             title=d['title'], body=d['body'], topic=d.get('topic','General'))
-    db.session.add(p); db.session.commit()
+    p = Post(poster_name=d['poster_name'], poster_contact=d.get('poster_contact', ''),
+             title=d['title'], body=d['body'], topic=d.get('topic', 'General'),
+             file_path=file_path, file_type=file_type)
+    db.session.add(p)
+    db.session.commit()
     return jsonify(post_to_dict(p)), 201
 
 @public_bp.route('/api/posts/<int:pid>/comments', methods=['GET'])
@@ -181,6 +209,26 @@ def update_lostandfound(lid):
     item.item_type = d.get('item_type', item.item_type)
     db.session.commit()
     return jsonify(lf_to_dict(item))
+
+@public_bp.route('/api/announcements', methods=['POST'])
+def create_announcement():
+    from datetime import timedelta
+    token = request.headers.get('X-Admin-Token', '')
+    if not token:
+        return jsonify({'error': 'Only admins can post announcements.'}), 403
+    cutoff = datetime.utcnow() - timedelta(hours=24)
+    session = AdminSession.query.filter_by(token=token).filter(
+        AdminSession.created_at >= cutoff
+    ).first()
+    if not session:
+        return jsonify({'error': 'Only admins can post announcements.'}), 403
+    d = request.get_json() or {}
+    if not d.get('title') or not d.get('body'):
+        return jsonify({'error': 'title and body are required'}), 400
+    a = Announcement(title=d['title'], body=d['body'], pinned=bool(d.get('pinned', False)))
+    db.session.add(a)
+    db.session.commit()
+    return jsonify(ann_to_dict(a)), 201
 
 @public_bp.route('/api/announcements')
 def get_announcements():

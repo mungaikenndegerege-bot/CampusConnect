@@ -1,5 +1,6 @@
 import csv
 import io
+import os
 from datetime import datetime, timedelta
 from flask import Blueprint, request, jsonify
 from app import db
@@ -131,8 +132,33 @@ def list_inst_posts(id):
 
 @institutions_bp.route('/<int:id>/posts', methods=['POST'])
 def create_inst_post(id):
+    import uuid as _uuid
     inst = Institution.query.get_or_404(id)
-    data = request.get_json() or {}
+    file_path = None
+    file_type = None
+    if request.files and 'attachment' in request.files:
+        f = request.files['attachment']
+        if f and f.filename:
+            ext = f.filename.rsplit('.', 1)[-1].lower() if '.' in f.filename else ''
+            image_exts = {'jpg', 'jpeg', 'png', 'webp', 'gif'}
+            file_exts = {'pdf', 'doc', 'docx'}
+            f.seek(0, 2)
+            size = f.tell()
+            f.seek(0)
+            from flask import current_app
+            if ext in image_exts and size <= 5 * 1024 * 1024:
+                filename = _uuid.uuid4().hex + '.' + ext
+                f.save(os.path.join(current_app.config['UPLOAD_FOLDER'], filename))
+                file_path = filename
+                file_type = 'image'
+            elif ext in file_exts and size <= 10 * 1024 * 1024:
+                filename = _uuid.uuid4().hex + '.' + ext
+                f.save(os.path.join(current_app.config['UPLOAD_FOLDER'], filename))
+                file_path = filename
+                file_type = 'file'
+        data = request.form
+    else:
+        data = request.get_json() or {}
     poster_name = (data.get('poster_name') or '').strip()
     title = (data.get('title') or '').strip()
     body = (data.get('body') or '').strip()
@@ -140,13 +166,11 @@ def create_inst_post(id):
         return jsonify({'error': 'poster_name and title are required'}), 400
     if not body:
         return jsonify({'error': 'body is required'}), 400
-
     comm = inst.community
     if not comm:
         comm = InstitutionCommunity(institution_id=inst.id)
         db.session.add(comm)
         db.session.flush()
-
     post = InstitutionPost(
         institution_id=inst.id,
         community_id=comm.id,
@@ -154,7 +178,9 @@ def create_inst_post(id):
         poster_contact=(data.get('poster_contact') or '').strip() or None,
         title=title,
         body=body,
-        topic=data.get('topic', 'General')
+        topic=data.get('topic', 'General'),
+        file_path=file_path,
+        file_type=file_type
     )
     db.session.add(post)
     comm.post_count = (comm.post_count or 0) + 1
