@@ -1,3 +1,4 @@
+import uuid
 from datetime import datetime
 from app import db
 
@@ -72,3 +73,31 @@ class AdminSession(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     token = db.Column(db.String(64), unique=True, index=True, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+class Account(db.Model):
+    __tablename__ = 'account'
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+    email = db.Column(db.String(200), unique=True, nullable=False)
+    password_hash = db.Column(db.String(256), nullable=False)
+    bio = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    active = db.Column(db.Boolean, default=True)
+    sessions = db.relationship('AccountSession', backref='account', lazy=True)
+
+class AccountSession(db.Model):
+    __tablename__ = 'account_session'
+    id = db.Column(db.Integer, primary_key=True)
+    account_id = db.Column(db.Integer, db.ForeignKey('account.id'), nullable=False)
+    token = db.Column(db.String(64), unique=True, index=True, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+class Report(db.Model):
+    __tablename__ = 'report'
+    id = db.Column(db.Integer, primary_key=True)
+    content_type = db.Column(db.String(20), nullable=False)  # post/marketplace/lostandfound
+    content_id = db.Column(db.Integer, nullable=False)
+    reason = db.Column(db.String(200), nullable=False)
+    reporter_ip = db.Column(db.String(50))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    resolved = db.Column(db.Boolean, default=False)

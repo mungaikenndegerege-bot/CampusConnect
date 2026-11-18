@@ -51,7 +51,7 @@ function showDashboard() {
 
 function loadTab(tab) {
   document.querySelectorAll('.admin-tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
-  const loaders = { ads: loadAdsTab, announcements: loadAnnouncementsTab, posts: loadPostsTab, marketplace: loadMarketplaceTab, lostandfound: loadLFTab };
+  const loaders = { ads: loadAdsTab, announcements: loadAnnouncementsTab, posts: loadPostsTab, marketplace: loadMarketplaceTab, lostandfound: loadLFTab, reports: loadReportsTab };
   if (loaders[tab]) loaders[tab]();
 }
 
@@ -199,4 +199,43 @@ async function deleteLFItem(id) {
   if (!confirm('Delete report?')) return;
   await adminApi('DELETE', `/api/admin/lostandfound/${id}`).catch(e => alert('Error'));
   loadLFTab();
+}
+
+async function loadReportsTab() {
+  const c = document.getElementById('admin-tab-content');
+  c.innerHTML = '<div>Loading...</div>';
+  const reports = await adminApi('GET', '/api/admin/reports').catch(() => []);
+  if (!reports.length) { c.innerHTML = '<h3 style="margin-bottom:12px">Reports</h3><p style="color:#9ca3af">No unresolved reports.</p>'; return; }
+  let html = `<h3 style="margin-bottom:12px">Unresolved Reports (${reports.length})</h3>`;
+  reports.forEach(r => {
+    const typeLabel = r.content_type === 'post' ? 'Post' : r.content_type === 'marketplace' ? 'Marketplace' : 'Lost &amp; Found';
+    const deleteEndpoint = r.content_type === 'post' ? `/api/admin/posts/${r.content_id}` :
+                           r.content_type === 'marketplace' ? `/api/admin/marketplace/${r.content_id}` :
+                           `/api/admin/lostandfound/${r.content_id}`;
+    html += `<div class="admin-item">
+      <div class="admin-item-info">
+        <strong><span class="badge">${typeLabel}</span> ${escHtml(r.content_preview || '#' + r.content_id)}</strong>
+        <small>Reason: ${escHtml(r.reason)}</small>
+        <small>Reported: ${new Date(r.created_at).toLocaleString()} &bull; IP: ${escHtml(r.reporter_ip || 'unknown')}</small>
+      </div>
+      <div class="admin-item-actions">
+        <button class="btn-danger" onclick="deleteReportedContent('${deleteEndpoint}', ${r.id})">Delete Content</button>
+        <button class="btn-warning" onclick="dismissReport(${r.id})">Dismiss</button>
+      </div>
+    </div>`;
+  });
+  c.innerHTML = html;
+}
+
+async function deleteReportedContent(endpoint, reportId) {
+  if (!confirm('Delete this content and resolve the report?')) return;
+  await adminApi('DELETE', endpoint).catch(e => alert('Error deleting content'));
+  await adminApi('POST', `/api/admin/reports/${reportId}/resolve`).catch(e => {});
+  loadReportsTab();
+}
+
+async function dismissReport(reportId) {
+  if (!confirm('Dismiss this report without deleting content?')) return;
+  await adminApi('POST', `/api/admin/reports/${reportId}/resolve`).catch(e => alert('Error'));
+  loadReportsTab();
 }

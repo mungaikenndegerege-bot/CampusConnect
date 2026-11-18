@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime, timedelta
 from flask import Blueprint, request, jsonify, current_app
 from app import db
-from app.models import Ad, Announcement, Post, MarketplaceItem, LostFoundItem, AdminSession
+from app.models import Ad, Announcement, Post, MarketplaceItem, LostFoundItem, AdminSession, Report
 import os
 from werkzeug.utils import secure_filename
 
@@ -139,4 +139,44 @@ def delete_lostandfound(lid):
         return jsonify({'error': 'Unauthorized'}), 401
     l = LostFoundItem.query.get_or_404(lid)
     l.deleted = True; db.session.commit()
+    return jsonify({'ok': True})
+
+@admin_bp.route('/api/admin/reports', methods=['GET'])
+def list_reports():
+    if not require_admin():
+        return jsonify({'error': 'Unauthorized'}), 401
+    reports = Report.query.filter_by(resolved=False).order_by(Report.created_at.desc()).all()
+    result = []
+    for r in reports:
+        entry = {
+            'id': r.id,
+            'content_type': r.content_type,
+            'content_id': r.content_id,
+            'reason': r.reason,
+            'reporter_ip': r.reporter_ip,
+            'created_at': r.created_at.isoformat(),
+            'content_preview': ''
+        }
+        if r.content_type == 'post':
+            item = Post.query.get(r.content_id)
+            if item:
+                entry['content_preview'] = item.title
+        elif r.content_type == 'marketplace':
+            item = MarketplaceItem.query.get(r.content_id)
+            if item:
+                entry['content_preview'] = item.title
+        elif r.content_type == 'lostandfound':
+            item = LostFoundItem.query.get(r.content_id)
+            if item:
+                entry['content_preview'] = item.title
+        result.append(entry)
+    return jsonify(result)
+
+@admin_bp.route('/api/admin/reports/<int:rid>/resolve', methods=['POST'])
+def resolve_report(rid):
+    if not require_admin():
+        return jsonify({'error': 'Unauthorized'}), 401
+    report = Report.query.get_or_404(rid)
+    report.resolved = True
+    db.session.commit()
     return jsonify({'ok': True})

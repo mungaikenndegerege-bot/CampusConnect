@@ -13,8 +13,10 @@ def create_app():
     os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
     from app.public import public_bp
     from app.admin import admin_bp
+    from app.accounts import accounts_bp
     app.register_blueprint(public_bp)
     app.register_blueprint(admin_bp)
+    app.register_blueprint(accounts_bp)
 
     @app.route('/')
     def index():

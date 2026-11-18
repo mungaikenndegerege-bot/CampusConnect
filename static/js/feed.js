@@ -150,6 +150,7 @@ function renderPostCard(p) {
     <div class="card-title">${escHtml(p.title)}</div>
     <div class="card-body">${escHtml(p.body)}</div>
     <div class="card-meta"><span class="badge">${escHtml(p.topic || 'General')}</span><span class="badge badge-accent">Community</span><span style="font-size:0.75rem;color:#9ca3af;margin-left:auto">Tap to read &amp; comment →</span></div>
+    <div style="margin-top:6px;text-align:right"><button class="report-btn" onclick="event.stopPropagation();openReportModal('post',${p.id})" style="background:none;border:none;color:#9ca3af;font-size:0.75rem;cursor:pointer;padding:2px 4px">🚩 Report</button></div>
   </div>`;
 }
 
@@ -161,6 +162,7 @@ function renderMarketCard(m) {
     ${m.price ? `<div class="card-price">KSh ${Number(m.price).toLocaleString()}</div>` : ''}
     <div class="card-meta"><span class="badge badge-accent">${escHtml(m.category)}</span><span class="badge">Marketplace</span><span style="font-size:0.75rem;color:#9ca3af;margin-left:auto">Tap for details →</span></div>
     <div class="contact-row">&#128222; ${escHtml(m.poster_contact)} &bull; ${escHtml(m.poster_name)} &bull; ${timeAgo(m.created_at)}</div>
+    <div style="margin-top:6px;text-align:right"><button class="report-btn" onclick="event.stopPropagation();openReportModal('marketplace',${m.id})" style="background:none;border:none;color:#9ca3af;font-size:0.75rem;cursor:pointer;padding:2px 4px">🚩 Report</button></div>
   </div>`;
 }
 
@@ -171,6 +173,7 @@ function renderLFCard(l) {
     <div class="card-body">${escHtml(l.description)}</div>
     <div class="card-meta"><span class="badge ${cls}">${l.item_type === 'lost' ? 'Lost' : 'Found'}</span><span class="badge">Lost &amp; Found</span><span style="font-size:0.75rem;color:#9ca3af;margin-left:auto">Tap for details →</span></div>
     <div class="contact-row">&#128205; ${escHtml(l.location)} &bull; ${escHtml(l.poster_contact)} &bull; ${timeAgo(l.created_at)}</div>
+    <div style="margin-top:6px;text-align:right"><button class="report-btn" onclick="event.stopPropagation();openReportModal('lostandfound',${l.id})" style="background:none;border:none;color:#9ca3af;font-size:0.75rem;cursor:pointer;padding:2px 4px">🚩 Report</button></div>
   </div>`;
 }
 

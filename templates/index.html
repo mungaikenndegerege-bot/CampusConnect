@@ -7,6 +7,11 @@
   <link rel="stylesheet" href="/static/css/style.css">
   <link rel="manifest" href="/static/manifest.json">
   <meta name="theme-color" content="#6C3CE1">
+  <style>
+    .account-bar-btn { background: none; border: 1px solid #6C3CE1; color: #6C3CE1; border-radius: 14px; padding: 3px 10px; font-size: 0.78rem; cursor: pointer; white-space: nowrap; }
+    .account-bar-btn:hover { background: #6C3CE1; color: #fff; }
+    #top-bar { display: flex; align-items: center; justify-content: space-between; }
+  </style>
 </head>
 <body>
   <div id="app-shell">
@@ -15,6 +20,7 @@
         <h1>CampusConnect</h1>
         <p class="tagline">Kila Kitu Made Easy</p>
       </div>
+      <div id="account-bar" style="display:flex;align-items:center;gap:6px;padding:4px 8px"></div>
     </header>
     <!-- AdSense slot: replace this comment with your AdSense script tag -->
     <div id="adsense-slot" style="text-align:center;background:#fffbe6;border-top:2px solid #F5A623;border-bottom:2px solid #F5A623;padding:10px 16px;font-size:12px;color:#555;line-height:1.8;">
@@ -49,6 +55,7 @@
   <script src="/static/js/marketplace.js"></script>
   <script src="/static/js/lostandfound.js"></script>
   <script src="/static/js/announcements.js"></script>
+  <script src="/static/js/account.js"></script>
 <footer id="app-footer">
   <p>&copy; 2026 CampusConnect &nbsp;&middot;&nbsp; Kila Kitu Made Easy</p>
   <p>Developed by <strong>Ken Mungai</strong></p>

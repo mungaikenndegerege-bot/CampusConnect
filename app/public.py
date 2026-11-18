@@ -3,7 +3,8 @@ from flask import Blueprint, request, jsonify, current_app, send_from_directory
 from werkzeug.utils import secure_filename
 from datetime import datetime
 from app import db
-from app.models import Post, Comment, MarketplaceItem, LostFoundItem, Announcement, Ad
+from app.models import Post, Comment, MarketplaceItem, LostFoundItem, Announcement, Ad, Report
+from app.ratelimit import check_rate_limit
 
 public_bp = Blueprint('public_bp', __name__)
 
@@ -66,6 +67,7 @@ def get_posts():
     return jsonify({'items': [post_to_dict(p) for p in items], 'total': total, 'page': page, 'pages': (total+per_page-1)//per_page})
 
 @public_bp.route('/api/posts', methods=['POST'])
+@check_rate_limit(5, 3600)
 def create_post():
     d = request.get_json()
     if not d or not d.get('poster_name') or not d.get('title') or not d.get('body'):
@@ -100,6 +102,7 @@ def get_marketplace():
     return jsonify({'items': [market_to_dict(m) for m in items], 'total': total, 'page': page, 'pages': (total+per_page-1)//per_page})
 
 @public_bp.route('/api/marketplace', methods=['POST'])
+@check_rate_limit(3, 3600)
 def create_marketplace():
     image_path = None
     if 'image' in request.files:
@@ -124,6 +127,7 @@ def get_lostandfound():
     return jsonify({'items': [lf_to_dict(l) for l in items], 'total': total, 'page': page, 'pages': (total+per_page-1)//per_page})
 
 @public_bp.route('/api/lostandfound', methods=['POST'])
+@check_rate_limit(5, 3600)
 def create_lostandfound():
     d = request.get_json()
     if not d or not d.get('poster_name') or not d.get('title') or not d.get('description') or not d.get('location') or not d.get('poster_contact') or not d.get('item_type'):
@@ -198,3 +202,21 @@ def click_ad(aid):
 @public_bp.route('/api/uploads/<filename>')
 def serve_upload(filename):
     return send_from_directory(current_app.config['UPLOAD_FOLDER'], filename)
+
+@public_bp.route('/api/report', methods=['POST'])
+@check_rate_limit(10, 3600)
+def create_report():
+    d = request.get_json()
+    if not d or not d.get('content_type') or not d.get('content_id') or not d.get('reason'):
+        return jsonify({'error': 'Missing fields'}), 400
+    if d['content_type'] not in ('post', 'marketplace', 'lostandfound'):
+        return jsonify({'error': 'Invalid content_type'}), 400
+    report = Report(
+        content_type=d['content_type'],
+        content_id=int(d['content_id']),
+        reason=d['reason'],
+        reporter_ip=request.remote_addr
+    )
+    db.session.add(report)
+    db.session.commit()
+    return jsonify({'ok': True}), 201
