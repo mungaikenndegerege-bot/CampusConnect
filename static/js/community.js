@@ -37,7 +37,7 @@ async function loadCommunityPosts(reset) {
 }
 
 function renderCommunityCard(p) {
-  return `<div class="card" data-post-id="${p.id}">
+  return `<div class="card" data-post-id="${p.id}" data-post-title="${escHtml(p.title)}" data-post-body="${escHtml(p.body)}" data-post-topic="${escHtml(p.topic || 'General')}">
     <div class="card-header">
       <div class="avatar">${escHtml(avatarLetter(p.poster_name))}</div>
       <div class="poster-info"><div class="poster-name">${escHtml(p.poster_name)}</div><div class="post-time">${timeAgo(p.created_at)}</div></div>
@@ -45,7 +45,10 @@ function renderCommunityCard(p) {
     <div class="card-title">${escHtml(p.title)}</div>
     <div class="card-body">${escHtml(p.body)}</div>
     <div class="card-meta"><span class="badge">${escHtml(p.topic || 'General')}</span></div>
-    <button class="toggle-comments" data-id="${p.id}" data-count="${p.comment_count}">${p.comment_count > 0 ? `View ${p.comment_count} comment${p.comment_count !== 1 ? 's' : ''}` : 'Add a comment'}</button>
+    <div class="card-actions">
+      <button class="btn-edit" onclick="editPost(${p.id})">&#9998;&#65039; Edit</button>
+      <button class="toggle-comments" data-id="${p.id}" data-count="${p.comment_count}">${p.comment_count > 0 ? `View ${p.comment_count} comment${p.comment_count !== 1 ? 's' : ''}` : 'Add a comment'}</button>
+    </div>
     <div class="comments-section" id="comments-${p.id}" style="display:none"></div>
   </div>`;
 }
@@ -109,4 +112,34 @@ async function submitCommunityPost() {
     showToast('Post published!', 'success');
     renderCommunity();
   } catch(e) { showToast('Could not publish post.', 'error'); }
+}
+
+function editPost(pid) {
+  const card = document.querySelector(`.card[data-post-id="${pid}"]`);
+  const title = card ? card.dataset.postTitle : '';
+  const body = card ? card.dataset.postBody : '';
+  const topic = card ? card.dataset.postTopic : 'General';
+  const name = prompt('Enter your name to edit:');
+  if (!name) return;
+  openModal(`<div class="form-title">&#9998;&#65039; Edit Post</div>
+    <div class="form-group"><label>Topic</label><select id="ep-topic"><option${topic==='General'?' selected':''}>General</option><option${topic==='Academic'?' selected':''}>Academic</option><option${topic==='Study Groups'?' selected':''}>Study Groups</option><option${topic==='Q&A'?' selected':''}>Q&amp;A</option></select></div>
+    <div class="form-group"><label>Title *</label><input type="text" id="ep-title" value="${escHtml(title)}"></div>
+    <div class="form-group"><label>Message *</label><textarea id="ep-body">${escHtml(body)}</textarea></div>
+    <button class="btn-primary" onclick="submitEditPost(${pid}, '${escHtml(name)}')">Save Changes</button>`);
+}
+
+async function submitEditPost(pid, poster_name) {
+  const title = document.getElementById('ep-title').value.trim();
+  const body = document.getElementById('ep-body').value.trim();
+  const topic = document.getElementById('ep-topic').value;
+  if (!title || !body) { showToast('Title and message are required.', 'error'); return; }
+  try {
+    await api('PUT', `/api/posts/${pid}`, { poster_name, title, body, topic });
+    closeModal();
+    showToast('Post updated!', 'success');
+    renderCommunity();
+  } catch(e) {
+    if (e.status === 403) { showToast('Name does not match the original poster', 'error'); }
+    else { showToast('Could not update post.', 'error'); }
+  }
 }

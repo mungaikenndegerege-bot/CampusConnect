@@ -31,12 +31,13 @@ async function loadLFItems(reset) {
 function renderLFItem(l) {
   const cls = l.item_type === 'lost' ? 'badge-red' : 'badge-green';
   const label = l.item_type === 'lost' ? '&#128531; Lost' : '&#128515; Found';
-  return `<div class="card">
+  return `<div class="card" data-lf-id="${l.id}" data-lf-title="${escHtml(l.title)}" data-lf-desc="${escHtml(l.description)}" data-lf-location="${escHtml(l.location)}" data-lf-type="${escHtml(l.item_type)}">
     <div class="card-meta" style="margin-bottom:8px"><span class="badge ${cls}">${label}</span></div>
     <div class="card-title">${escHtml(l.title)}</div>
     <div class="card-body">${escHtml(l.description)}</div>
     <div class="contact-row">&#128205; ${escHtml(l.location)}</div>
     <div class="contact-row">&#128222; ${escHtml(l.poster_contact)} &bull; ${escHtml(l.poster_name)} &bull; ${timeAgo(l.created_at)}</div>
+    <div class="card-actions"><button class="btn-edit" onclick="editLFItem(${l.id})">&#9998;&#65039; Edit</button></div>
   </div>`;
 }
 
@@ -65,4 +66,37 @@ async function submitLFItem() {
     showToast('Report submitted!', 'success');
     renderLostFound();
   } catch(e) { showToast('Could not submit report.', 'error'); }
+}
+
+function editLFItem(lid) {
+  const card = document.querySelector(`.card[data-lf-id="${lid}"]`);
+  const title = card ? card.dataset.lfTitle : '';
+  const desc = card ? card.dataset.lfDesc : '';
+  const location = card ? card.dataset.lfLocation : '';
+  const itype = card ? card.dataset.lfType : 'lost';
+  const name = prompt('Enter your name to edit:');
+  if (!name) return;
+  openModal(`<div class="form-title">&#9998;&#65039; Edit Report</div>
+    <div class="form-group"><label>Type *</label><select id="el-type"><option value="lost"${itype==='lost'?' selected':''}>I Lost Something</option><option value="found"${itype==='found'?' selected':''}>I Found Something</option></select></div>
+    <div class="form-group"><label>Item Title *</label><input type="text" id="el-title" value="${escHtml(title)}"></div>
+    <div class="form-group"><label>Description *</label><textarea id="el-desc">${escHtml(desc)}</textarea></div>
+    <div class="form-group"><label>Location *</label><input type="text" id="el-location" value="${escHtml(location)}"></div>
+    <button class="btn-primary" onclick="submitEditLF(${lid}, '${escHtml(name)}')">Save Changes</button>`);
+}
+
+async function submitEditLF(lid, poster_name) {
+  const title = document.getElementById('el-title').value.trim();
+  const description = document.getElementById('el-desc').value.trim();
+  const location = document.getElementById('el-location').value.trim();
+  const item_type = document.getElementById('el-type').value;
+  if (!title || !description || !location) { showToast('All fields are required.', 'error'); return; }
+  try {
+    await api('PUT', `/api/lostandfound/${lid}`, { poster_name, title, description, location, item_type });
+    closeModal();
+    showToast('Report updated!', 'success');
+    renderLostFound();
+  } catch(e) {
+    if (e.status === 403) { showToast('Name does not match the original poster', 'error'); }
+    else { showToast('Could not update report.', 'error'); }
+  }
 }

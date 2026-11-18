@@ -134,6 +134,50 @@ def create_lostandfound():
     db.session.add(l); db.session.commit()
     return jsonify(lf_to_dict(l)), 201
 
+@public_bp.route('/api/posts/<int:pid>', methods=['PUT'])
+def update_post(pid):
+    post = Post.query.get_or_404(pid)
+    d = request.get_json()
+    if not d or not d.get('poster_name'):
+        return jsonify({'error': 'Missing poster_name'}), 400
+    if post.poster_name.strip().lower() != d['poster_name'].strip().lower():
+        return jsonify({'error': 'Name does not match the original poster'}), 403
+    post.title = d.get('title', post.title)
+    post.body = d.get('body', post.body)
+    post.topic = d.get('topic', post.topic)
+    db.session.commit()
+    return jsonify(post_to_dict(post))
+
+@public_bp.route('/api/marketplace/<int:mid>', methods=['PUT'])
+def update_marketplace(mid):
+    item = MarketplaceItem.query.get_or_404(mid)
+    d = request.get_json()
+    if not d or not d.get('poster_name'):
+        return jsonify({'error': 'Missing poster_name'}), 400
+    if item.poster_name.strip().lower() != d['poster_name'].strip().lower():
+        return jsonify({'error': 'Name does not match the original poster'}), 403
+    item.title = d.get('title', item.title)
+    item.description = d.get('description', item.description)
+    item.price = d.get('price', item.price)
+    item.category = d.get('category', item.category)
+    db.session.commit()
+    return jsonify(market_to_dict(item))
+
+@public_bp.route('/api/lostandfound/<int:lid>', methods=['PUT'])
+def update_lostandfound(lid):
+    item = LostFoundItem.query.get_or_404(lid)
+    d = request.get_json()
+    if not d or not d.get('poster_name'):
+        return jsonify({'error': 'Missing poster_name'}), 400
+    if item.poster_name.strip().lower() != d['poster_name'].strip().lower():
+        return jsonify({'error': 'Name does not match the original poster'}), 403
+    item.title = d.get('title', item.title)
+    item.description = d.get('description', item.description)
+    item.location = d.get('location', item.location)
+    item.item_type = d.get('item_type', item.item_type)
+    db.session.commit()
+    return jsonify(lf_to_dict(item))
+
 @public_bp.route('/api/announcements')
 def get_announcements():
     items = Announcement.query.order_by(Announcement.pinned.desc(), Announcement.created_at.desc()).all()

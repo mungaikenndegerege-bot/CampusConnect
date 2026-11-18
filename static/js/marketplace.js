@@ -34,13 +34,14 @@ async function loadMarketItems(reset) {
 
 function renderMarketItem(m) {
   const filename = m.image_path ? m.image_path.split('/').pop() : null;
-  return `<div class="card">
+  return `<div class="card" data-item-id="${m.id}" data-item-title="${escHtml(m.title)}" data-item-desc="${escHtml(m.description)}" data-item-price="${escHtml(m.price || '')}" data-item-cat="${escHtml(m.category)}">
     ${filename ? `<img class="card-image" src="/api/uploads/${escHtml(filename)}" alt="">` : ''}
     <div class="card-title">${escHtml(m.title)}</div>
     <div class="card-body">${escHtml(m.description)}</div>
     ${m.price ? `<div class="card-price">KSh ${escHtml(m.price)}</div>` : '<div class="card-price" style="color:var(--text-muted);font-size:0.85rem">Price negotiable</div>'}
     <div class="card-meta"><span class="badge badge-accent">${escHtml(m.category)}</span></div>
     <div class="contact-row">&#128222; ${escHtml(m.poster_contact)} &bull; ${escHtml(m.poster_name)} &bull; ${timeAgo(m.created_at)}</div>
+    <div class="card-actions"><button class="btn-edit" onclick="editMarketItem(${m.id})">&#9998;&#65039; Edit</button></div>
   </div>`;
 }
 
@@ -79,4 +80,37 @@ async function submitMarketItem() {
     showToast('Item listed!', 'success');
     renderMarketplace();
   } catch(e) { showToast('Could not list item. ' + (e.data && e.data.error ? e.data.error : ''), 'error'); }
+}
+
+function editMarketItem(mid) {
+  const card = document.querySelector(`.card[data-item-id="${mid}"]`);
+  const title = card ? card.dataset.itemTitle : '';
+  const desc = card ? card.dataset.itemDesc : '';
+  const price = card ? card.dataset.itemPrice : '';
+  const cat = card ? card.dataset.itemCat : 'Other';
+  const name = prompt('Enter your name to edit:');
+  if (!name) return;
+  openModal(`<div class="form-title">&#9998;&#65039; Edit Listing</div>
+    <div class="form-group"><label>Title *</label><input type="text" id="em-title" value="${escHtml(title)}"></div>
+    <div class="form-group"><label>Description *</label><textarea id="em-desc">${escHtml(desc)}</textarea></div>
+    <div class="form-group"><label>Price <span class="optional-label">(leave blank if negotiable)</span></label><input type="text" id="em-price" value="${escHtml(price)}"></div>
+    <div class="form-group"><label>Category</label><select id="em-cat"><option${cat==='Books'?' selected':''}>Books</option><option${cat==='Electronics'?' selected':''}>Electronics</option><option${cat==='Accessories'?' selected':''}>Accessories</option><option${cat==='Accommodation'?' selected':''}>Accommodation</option><option${cat==='Other'?' selected':''}>Other</option></select></div>
+    <button class="btn-primary" onclick="submitEditMarket(${mid}, '${escHtml(name)}')">Save Changes</button>`);
+}
+
+async function submitEditMarket(mid, poster_name) {
+  const title = document.getElementById('em-title').value.trim();
+  const description = document.getElementById('em-desc').value.trim();
+  const price = document.getElementById('em-price').value.trim();
+  const category = document.getElementById('em-cat').value;
+  if (!title || !description) { showToast('Title and description are required.', 'error'); return; }
+  try {
+    await api('PUT', `/api/marketplace/${mid}`, { poster_name, title, description, price, category });
+    closeModal();
+    showToast('Listing updated!', 'success');
+    renderMarketplace();
+  } catch(e) {
+    if (e.status === 403) { showToast('Name does not match the original poster', 'error'); }
+    else { showToast('Could not update listing.', 'error'); }
+  }
 }
