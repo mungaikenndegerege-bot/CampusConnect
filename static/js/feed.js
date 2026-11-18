@@ -9,6 +9,14 @@ async function renderFeed() {
       return;
     }
     let html = '<div class="section-header"><h2 class="section-title">&#127968; Feed &mdash; What\'s happening</h2></div>';
+
+    // Institution quick-access
+    const myInst = (() => { try { return JSON.parse(localStorage.getItem('cc_my_institution') || 'null'); } catch(e) { return null; } })();
+    if (myInst && myInst.id) {
+      html += `<div style="margin-bottom:12px"><button class="inst-quick-btn" onclick="openInstitutionCommunity(${myInst.id})">🏫 ${escHtml(myInst.abbreviation || myInst.name)} Community</button></div>`;
+    } else {
+      html += `<div style="margin-bottom:12px"><button class="inst-quick-btn" onclick="navigate('institutions')">🏫 Find Your Institution</button></div>`;
+    }
     withAds.forEach(item => {
       if (item.type === 'ad') { html += renderAdBanner(item); return; }
       if (item.section === 'community') html += renderPostCard(item);

@@ -83,7 +83,7 @@ function navigate(section) {
     b.classList.toggle('active', b.dataset.section === section)
   );
   const fab = document.getElementById('fab-btn');
-  const fabLabels = { community: '\u270f\ufe0f Post', marketplace: '+ List Item', lostandfound: '+ Report' };
+  const fabLabels = { community: '\u270f\ufe0f Post', marketplace: '+ List Item', lostandfound: '+ Report', institutions: '\u270f\ufe0f Post' };
   if (fabLabels[section]) {
     fab.textContent = fabLabels[section];
     fab.style.display = 'flex';
@@ -91,7 +91,7 @@ function navigate(section) {
   } else {
     fab.style.display = 'none';
   }
-  const renders = { feed: renderFeed, community: renderCommunity, marketplace: renderMarketplace, lostandfound: renderLostFound, announcements: renderAnnouncements };
+  const renders = { feed: renderFeed, community: renderCommunity, marketplace: renderMarketplace, lostandfound: renderLostFound, announcements: renderAnnouncements, institutions: renderInstitutions };
   renders[section]();
 }
 

@@ -17,6 +17,9 @@ def create_app():
     app.register_blueprint(public_bp)
     app.register_blueprint(admin_bp)
     app.register_blueprint(accounts_bp)
+    from app.institutions import institutions_bp, admin_inst_bp
+    app.register_blueprint(institutions_bp)
+    app.register_blueprint(admin_inst_bp)
 
     @app.route('/')
     def index():

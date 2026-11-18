@@ -51,7 +51,7 @@ function showDashboard() {
 
 function loadTab(tab) {
   document.querySelectorAll('.admin-tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
-  const loaders = { ads: loadAdsTab, announcements: loadAnnouncementsTab, posts: loadPostsTab, marketplace: loadMarketplaceTab, lostandfound: loadLFTab, reports: loadReportsTab };
+  const loaders = { ads: loadAdsTab, announcements: loadAnnouncementsTab, posts: loadPostsTab, marketplace: loadMarketplaceTab, lostandfound: loadLFTab, reports: loadReportsTab, institutions: loadInstitutionsAdminTab };
   if (loaders[tab]) loaders[tab]();
 }
 
@@ -238,4 +238,192 @@ async function dismissReport(reportId) {
   if (!confirm('Dismiss this report without deleting content?')) return;
   await adminApi('POST', `/api/admin/reports/${reportId}/resolve`).catch(e => alert('Error'));
   loadReportsTab();
+}
+
+// ---- Institutions Admin Tab ----
+
+async function loadInstitutionsAdminTab() {
+  const c = document.getElementById('admin-tab-content');
+  c.innerHTML = '<div>Loading institutions…</div>';
+
+  let categories = [];
+  try {
+    const catData = await fetch('/api/institutions/categories').then(r => r.json());
+    categories = catData.categories || [];
+  } catch(e) {}
+
+  const catOptions = categories.map(cat => `<option value="${escHtml(cat.name)}">${escHtml(cat.name)}</option>`).join('');
+
+  let html = `
+    <div class="admin-form">
+      <h3>Add Institution</h3>
+      <div class="form-group"><label>Name *</label><input id="inst-adm-name" type="text" placeholder="Full institution name"></div>
+      <div class="form-group"><label>Abbreviation</label><input id="inst-adm-abbr" type="text" placeholder="e.g. UoN"></div>
+      <div class="form-group"><label>Category</label>
+        <select id="inst-adm-cat"><option value="">-- Select Category --</option>${catOptions}</select>
+      </div>
+      <div class="form-group"><label>Ownership</label>
+        <select id="inst-adm-own"><option value="Public">Public</option><option value="Private">Private</option></select>
+      </div>
+      <div class="form-group"><label>County</label><input id="inst-adm-county" type="text"></div>
+      <div class="form-group"><label>Town</label><input id="inst-adm-town" type="text"></div>
+      <div class="form-group"><label>Website</label><input id="inst-adm-website" type="url" placeholder="https://"></div>
+      <button class="btn-primary" onclick="adminCreateInstitution()">Add Institution</button>
+    </div>
+    <div class="admin-form" style="margin-top:16px">
+      <h3>Import CSV</h3>
+      <p style="font-size:0.82rem;color:#666;margin-bottom:8px">CSV columns: name, abbreviation, category, ownership, county, town, website, source</p>
+      <div class="form-group"><input id="inst-csv-file" type="file" accept=".csv"></div>
+      <button class="btn-warning" onclick="adminImportInstitutionCSV()">Upload CSV</button>
+      <span id="inst-csv-result" style="margin-left:10px;font-size:0.85rem"></span>
+    </div>
+  `;
+
+  let institutions = [];
+  try {
+    const data = await adminApi('GET', '/api/admin/institutions');
+    institutions = data.institutions || [];
+  } catch(e) {}
+
+  html += `<h3 style="margin-bottom:12px">All Institutions (${institutions.length})</h3>`;
+  html += `<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:0.82rem">
+    <thead><tr style="background:#f3f4f6">
+      <th style="padding:8px;text-align:left">ID</th>
+      <th style="padding:8px;text-align:left">Name</th>
+      <th style="padding:8px;text-align:left">Abbr</th>
+      <th style="padding:8px;text-align:left">Category</th>
+      <th style="padding:8px;text-align:left">County</th>
+      <th style="padding:8px;text-align:left">Status</th>
+      <th style="padding:8px;text-align:left">Actions</th>
+    </tr></thead><tbody>`;
+
+  institutions.forEach(inst => {
+    const active = inst.active !== false;
+    html += `<tr style="border-bottom:1px solid #e5e7eb">
+      <td style="padding:6px 8px">${inst.id}</td>
+      <td style="padding:6px 8px"><strong>${escHtml(inst.name)}</strong></td>
+      <td style="padding:6px 8px">${escHtml(inst.abbreviation || '')}</td>
+      <td style="padding:6px 8px">${escHtml(inst.category || '')}</td>
+      <td style="padding:6px 8px">${escHtml(inst.county || '')}</td>
+      <td style="padding:6px 8px"><span style="color:${active ? '#2e7d32' : '#c62828'}">${active ? 'Active' : 'Inactive'}</span></td>
+      <td style="padding:6px 8px;white-space:nowrap">
+        <button class="btn-warning" style="font-size:0.75rem;padding:4px 8px" onclick="adminEditInstitutionForm(${inst.id})">Edit</button>
+        ${active ? `<button class="btn-danger" style="font-size:0.75rem;padding:4px 8px;margin-left:4px" onclick="adminDeactivateInstitution(${inst.id})">Deactivate</button>` : ''}
+      </td>
+    </tr>`;
+  });
+  html += '</tbody></table></div>';
+
+  c.innerHTML = html;
+  window._instAdminCategories = categories;
+  window._instAdminData = institutions;
+}
+
+async function adminCreateInstitution() {
+  const name = document.getElementById('inst-adm-name').value.trim();
+  if (!name) { alert('Name is required'); return; }
+  const data = {
+    name,
+    abbreviation: document.getElementById('inst-adm-abbr').value.trim() || undefined,
+    category: document.getElementById('inst-adm-cat').value || undefined,
+    ownership: document.getElementById('inst-adm-own').value,
+    county: document.getElementById('inst-adm-county').value.trim() || undefined,
+    town: document.getElementById('inst-adm-town').value.trim() || undefined,
+    website: document.getElementById('inst-adm-website').value.trim() || undefined
+  };
+  try {
+    await adminApi('POST', '/api/admin/institutions', data);
+    loadInstitutionsAdminTab();
+  } catch(e) { alert('Error: ' + JSON.stringify((e && e.data) || e)); }
+}
+
+async function adminDeactivateInstitution(id) {
+  if (!confirm('Deactivate this institution?')) return;
+  try {
+    await adminApi('DELETE', `/api/admin/institutions/${id}`);
+    loadInstitutionsAdminTab();
+  } catch(e) { alert('Error'); }
+}
+
+function adminEditInstitutionForm(id) {
+  const inst = (window._instAdminData || []).find(i => i.id === id);
+  if (!inst) return;
+  const cats = window._instAdminCategories || [];
+  const catOptions = cats.map(c => `<option value="${escHtml(c.name)}" ${inst.category === c.name ? 'selected' : ''}>${escHtml(c.name)}</option>`).join('');
+  openModal(`
+    <div>
+      <div class="form-title">Edit Institution</div>
+      <div class="form-group"><label>Name *</label><input id="edt-name" class="form-input" value="${escHtml(inst.name)}"></div>
+      <div class="form-group"><label>Abbreviation</label><input id="edt-abbr" class="form-input" value="${escHtml(inst.abbreviation || '')}"></div>
+      <div class="form-group"><label>Category</label>
+        <select id="edt-cat" class="form-input"><option value="">-- Select --</option>${catOptions}</select>
+      </div>
+      <div class="form-group"><label>Ownership</label>
+        <select id="edt-own" class="form-input">
+          <option value="Public" ${inst.ownership === 'Public' ? 'selected' : ''}>Public</option>
+          <option value="Private" ${inst.ownership === 'Private' ? 'selected' : ''}>Private</option>
+        </select>
+      </div>
+      <div class="form-group"><label>County</label><input id="edt-county" class="form-input" value="${escHtml(inst.county || '')}"></div>
+      <div class="form-group"><label>Town</label><input id="edt-town" class="form-input" value="${escHtml(inst.town || '')}"></div>
+      <div class="form-group"><label>Website</label><input id="edt-website" class="form-input" value="${escHtml(inst.website || '')}"></div>
+      <div class="form-group"><label><input type="checkbox" id="edt-active" ${inst.active !== false ? 'checked' : ''}> Active</label></div>
+      <button class="btn-primary" onclick="adminUpdateInstitution(${id})">Save Changes</button>
+    </div>
+  `);
+  // openModal from admin context (no app.js openModal available, define inline)
+}
+
+async function adminUpdateInstitution(id) {
+  const data = {
+    name: document.getElementById('edt-name').value.trim(),
+    abbreviation: document.getElementById('edt-abbr').value.trim() || null,
+    category: document.getElementById('edt-cat').value || null,
+    ownership: document.getElementById('edt-own').value,
+    county: document.getElementById('edt-county').value.trim() || null,
+    town: document.getElementById('edt-town').value.trim() || null,
+    website: document.getElementById('edt-website').value.trim() || null,
+    active: document.getElementById('edt-active').checked
+  };
+  if (!data.name) { alert('Name is required'); return; }
+  try {
+    await adminApi('PUT', `/api/admin/institutions/${id}`, data);
+    // Close modal if present
+    const overlay = document.getElementById('modal-overlay');
+    if (overlay) overlay.classList.remove('open');
+    loadInstitutionsAdminTab();
+  } catch(e) { alert('Error: ' + JSON.stringify((e && e.data) || e)); }
+}
+
+async function adminImportInstitutionCSV() {
+  const fileInput = document.getElementById('inst-csv-file');
+  const result = document.getElementById('inst-csv-result');
+  if (!fileInput || !fileInput.files[0]) { alert('Please select a CSV file'); return; }
+  const fd = new FormData();
+  fd.append('file', fileInput.files[0]);
+  try {
+    const res = await adminApi('POST', '/api/admin/institutions/import-csv', fd, true);
+    result.textContent = `✅ Added: ${res.added}, Skipped: ${res.skipped}`;
+    loadInstitutionsAdminTab();
+  } catch(e) {
+    result.textContent = '❌ Import failed';
+    alert('Error: ' + JSON.stringify((e && e.data) || e));
+  }
+}
+
+// Admin modal helper (admin.html doesn't use app.js modal)
+function openModal(html) {
+  let overlay = document.getElementById('modal-overlay');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'modal-overlay';
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:300;display:flex;align-items:flex-end;justify-content:center';
+    overlay.innerHTML = '<div id="modal-box" style="background:white;border-radius:20px 20px 0 0;width:100%;max-width:680px;max-height:90vh;overflow-y:auto;padding:20px;position:relative"><button id="modal-close" style="position:absolute;top:12px;right:16px;background:none;border:none;font-size:1.5rem;cursor:pointer">&times;</button><div id="modal-body"></div></div>';
+    document.body.appendChild(overlay);
+    overlay.addEventListener('click', e => { if (e.target.id === 'modal-overlay') overlay.classList.remove('open'); });
+    overlay.querySelector('#modal-close').addEventListener('click', () => overlay.classList.remove('open'));
+  }
+  overlay.querySelector('#modal-body').innerHTML = html;
+  overlay.classList.add('open');
+  overlay.style.display = 'flex';
 }
