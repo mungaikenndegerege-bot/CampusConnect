@@ -38,7 +38,7 @@ def ad_to_dict(a):
 @admin_bp.route('/api/admin/login', methods=['POST'])
 def admin_login():
     d = request.get_json()
-    if not d or d.get('username') != 'Adminmungai' or d.get('password') != 'Mbatia2000':
+    if not d or d.get('username') != 'Adminmungai' or d.get('password') != 'Mungai2300':
         return jsonify({'error': 'Invalid credentials'}), 401
     token = uuid.uuid4().hex
     s = AdminSession(token=token)
