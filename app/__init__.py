@@ -11,8 +11,6 @@ def create_app():
     db.init_app(app)
     CORS(app)
     os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
-    with app.app_context():
-        db.create_all()
     from app.public import public_bp
     from app.admin import admin_bp
     from app.accounts import accounts_bp
@@ -36,10 +34,6 @@ def create_app():
     @app.route('/admin')
     def admin_view():
         return render_template('admin.html')
-
-    @app.route('/health')
-    def health():
-        return {'status': 'ok'}
 
     @app.route('/advertiser')
     @app.route('/advertiser/')
