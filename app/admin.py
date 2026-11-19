@@ -6,6 +6,7 @@ from app.models import (Ad, Announcement, Post, MarketplaceItem, LostFoundItem,
                         AdminSession, Report,
                         Advertiser, AdCampaign, Advertisement, AdPlacement, AdPayment, AdDailyStat)
 import os
+import hmac
 from werkzeug.utils import secure_filename
 
 admin_bp = Blueprint('admin_bp', __name__)
@@ -40,7 +41,11 @@ def ad_to_dict(a):
 @admin_bp.route('/api/admin/login', methods=['POST'])
 def admin_login():
     d = request.get_json()
-    if not d or d.get('username') != 'Adminmungai' or d.get('password') != 'Mungai2300':
+    username = os.environ.get('ADMIN_USERNAME', '')
+    password = os.environ.get('ADMIN_PASSWORD', '')
+    if not d or not username or not password:
+        return jsonify({'error': 'Admin login is not configured'}), 503
+    if not hmac.compare_digest(d.get('username') or '', username) or not hmac.compare_digest(d.get('password') or '', password):
         return jsonify({'error': 'Invalid credentials'}), 401
     token = uuid.uuid4().hex
     s = AdminSession(token=token)

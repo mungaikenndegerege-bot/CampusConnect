@@ -12,6 +12,8 @@ async function api(method, path, body, isFormData) {
   }
   const token = localStorage.getItem('cc_admin_token');
   if (token) opts.headers['X-Admin-Token'] = token;
+  const accountToken = localStorage.getItem('cc_account_token');
+  if (accountToken) opts.headers['X-Account-Token'] = accountToken;
   const res = await fetch(path, opts);
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
