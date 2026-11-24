@@ -69,23 +69,25 @@ function getFeature(kind) {
   return featureCatalog.find(feature => feature.kind === kind);
 }
 
-function renderFeatureHub() {
-  const main = document.getElementById('main-content');
-  main.innerHTML = `
-    <div class="section-header">
-      <h2 class="section-title">\u2728 More from CampusConnect</h2>
-      <p class="feature-hub-intro">Explore opportunities, resources, and conversations made for campus life.</p>
-    </div>
-    <div class="feature-grid">${featureCatalog.map(feature => `
+function renderFeatureGrid() {
+  return `<div class="feature-grid home-feature-grid">${featureCatalog.map(feature => `
       <button class="feature-tile" type="button" data-feature-kind="${escHtml(feature.kind)}">
         <span class="feature-tile-icon" aria-hidden="true">${feature.icon}</span>
         <span class="feature-tile-title">${escHtml(feature.title)}</span>
         <span class="feature-tile-description">${escHtml(feature.description)}</span>
-      </button>`).join('')}
-    </div>`;
+      </button>`).join('')}</div>`;
+}
+
+function wireFeatureGrid(main) {
   main.querySelectorAll('[data-feature-kind]').forEach(button => {
     button.addEventListener('click', () => renderFeatureKind(button.dataset.featureKind));
   });
+}
+
+function renderFeatureHub() {
+  const main = document.getElementById('main-content');
+  main.innerHTML = renderFeatureGrid();
+  wireFeatureGrid(main);
 }
 
 function renderFeatureCard(item) {

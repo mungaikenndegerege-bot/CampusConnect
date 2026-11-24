@@ -5,10 +5,11 @@ async function renderFeed() {
     const items = await api('GET', '/api/feed');
     const withAds = injectAds(items);
     if (!withAds.length) {
-      mc.innerHTML = '<div class="empty-state"><div class="empty-icon">&#127968;</div><p>No posts yet. Be the first!</p></div>';
+      mc.innerHTML = `${renderFeatureGrid()}<div class="empty-state"><div class="empty-icon">&#127968;</div><p>No posts yet. Be the first!</p></div>`;
+      wireFeatureGrid(mc);
       return;
     }
-    let html = '<div class="section-header"><h2 class="section-title">&#127968; Feed &mdash; What\'s happening</h2></div>';
+    let html = `${renderFeatureGrid()}<div class="section-header"><h2 class="section-title">&#127968; Feed &mdash; What\'s happening</h2></div>`;
 
     // Institution quick-access
     const myInst = (() => { try { return JSON.parse(localStorage.getItem('cc_my_institution') || 'null'); } catch(e) { return null; } })();
@@ -25,6 +26,7 @@ async function renderFeed() {
       else if (item.section === 'announcement') html += renderAnnCard(item);
     });
     mc.innerHTML = html;
+    wireFeatureGrid(mc);
 
     // Wire up click-to-open on every card
     mc.querySelectorAll('.card[data-id]').forEach(card => {
@@ -38,7 +40,8 @@ async function renderFeed() {
       });
     });
   } catch(e) {
-    mc.innerHTML = '<div class="empty-state"><div class="empty-icon">&#128565;</div><p>Could not load feed.</p></div>';
+    mc.innerHTML = `${renderFeatureGrid()}<div class="empty-state"><div class="empty-icon">&#128565;</div><p>Could not load feed.</p></div>`;
+    wireFeatureGrid(mc);
   }
 }
 
