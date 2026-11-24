@@ -36,7 +36,7 @@ function renderAccountBar() {
   const account = getAccountData();
   if (account) {
     bar.innerHTML = `
-      <span style="font-size:0.82rem;color:#374151;margin-right:8px">👤 ${escHtml(account.name)}</span>
+      <span class="account-name">👤 ${escHtml(account.name)}</span>
       <button class="account-bar-btn" onclick="showMyPosts()">My Posts</button>
       <button class="account-bar-btn" onclick="signOut()">Sign Out</button>
     `;

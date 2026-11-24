@@ -3,7 +3,10 @@ from flask import Blueprint, request, jsonify, current_app, send_from_directory
 from werkzeug.utils import secure_filename
 from datetime import datetime
 from app import db
-from app.models import Post, Comment, MarketplaceItem, LostFoundItem, Announcement, Ad, Report, AdminSession
+from app.models import (
+    Post, Comment, MarketplaceItem, LostFoundItem, Announcement, Ad, Report,
+    AdminSession, Institution, InstitutionCategory, InstitutionPost
+)
 from app.ratelimit import check_rate_limit
 
 public_bp = Blueprint('public_bp', __name__)
@@ -58,6 +61,103 @@ def get_feed():
     anns = [ann_to_dict(a) for a in Announcement.query.order_by(Announcement.created_at.desc()).limit(10).all()]
     combined = sorted(posts + market + lf + anns, key=lambda x: x['created_at'], reverse=True)[:50]
     return jsonify(combined)
+
+
+@public_bp.route('/api/search')
+def search():
+    term = request.args.get('q', '').strip()
+    if not term or len(term) > 100:
+        return jsonify({'error': 'Enter a search term of 1-100 characters.'}), 400
+
+    escaped_term = term.replace('%', '\\%').replace('_', '\\_')
+    pattern = f'%{escaped_term}%'
+    results = []
+
+    def add_results(query, section, title_getter, body_getter, meta_getter=lambda item: ''):
+        for item in query.limit(8).all():
+            results.append({
+                'id': item.id,
+                'section': section,
+                'title': title_getter(item),
+                'body': body_getter(item)[:220],
+                'meta': meta_getter(item)
+            })
+
+    add_results(
+        Post.query.filter(
+            Post.deleted.is_(False),
+            db.or_(Post.title.ilike(pattern, escape='\\'),
+                   Post.body.ilike(pattern, escape='\\'),
+                   Post.topic.ilike(pattern, escape='\\'))
+        ).order_by(Post.created_at.desc()),
+        'community', lambda item: item.title, lambda item: item.body,
+        lambda item: f'Community · {item.topic or "General"}'
+    )
+    add_results(
+        MarketplaceItem.query.filter(
+            MarketplaceItem.deleted.is_(False),
+            MarketplaceItem.sold.is_(False),
+            db.or_(MarketplaceItem.title.ilike(pattern, escape='\\'),
+                   MarketplaceItem.description.ilike(pattern, escape='\\'),
+                   MarketplaceItem.category.ilike(pattern, escape='\\'))
+        ).order_by(MarketplaceItem.created_at.desc()),
+        'marketplace', lambda item: item.title, lambda item: item.description,
+        lambda item: f'Marketplace · {item.category or "Other"}'
+    )
+    add_results(
+        LostFoundItem.query.filter(
+            LostFoundItem.deleted.is_(False),
+            LostFoundItem.resolved.is_(False),
+            db.or_(LostFoundItem.title.ilike(pattern, escape='\\'),
+                   LostFoundItem.description.ilike(pattern, escape='\\'),
+                   LostFoundItem.location.ilike(pattern, escape='\\'))
+        ).order_by(LostFoundItem.created_at.desc()),
+        'lostandfound', lambda item: item.title, lambda item: item.description,
+        lambda item: f'{item.item_type.title()} · {item.location}'
+    )
+    add_results(
+        Announcement.query.filter(
+            db.or_(Announcement.title.ilike(pattern, escape='\\'),
+                   Announcement.body.ilike(pattern, escape='\\'))
+        ).order_by(Announcement.pinned.desc(), Announcement.created_at.desc()),
+        'announcement', lambda item: item.title, lambda item: item.body,
+        lambda item: 'Campus news'
+    )
+    add_results(
+        Institution.query.join(
+            InstitutionCategory, isouter=True
+        ).filter(
+            Institution.active.is_(True),
+            db.or_(Institution.name.ilike(pattern, escape='\\'),
+                   Institution.abbreviation.ilike(pattern, escape='\\'),
+                   Institution.county.ilike(pattern, escape='\\'),
+                   Institution.town.ilike(pattern, escape='\\'),
+                   InstitutionCategory.name.ilike(pattern, escape='\\'))
+        ).order_by(Institution.name),
+        'institution', lambda item: item.name,
+        lambda item: ' · '.join(value for value in (item.abbreviation, item.town, item.county) if value),
+        lambda item: item.category.name if item.category else 'Institution'
+    )
+
+    institution_posts = InstitutionPost.query.join(
+        Institution, InstitutionPost.institution_id == Institution.id
+    ).filter(
+        InstitutionPost.deleted.is_(False),
+        Institution.active.is_(True),
+        db.or_(InstitutionPost.title.ilike(pattern, escape='\\'),
+               InstitutionPost.body.ilike(pattern, escape='\\'))
+    ).order_by(InstitutionPost.created_at.desc()).limit(8).all()
+    for post in institution_posts:
+        results.append({
+            'id': post.institution_id,
+            'section': 'institution',
+            'title': post.title,
+            'body': post.body[:220],
+            'meta': f'{post.institution.name} · Community discussion'
+        })
+
+    return jsonify({'results': results[:48], 'query': term})
+
 
 @public_bp.route('/api/posts', methods=['GET'])
 def get_posts():
@@ -214,7 +314,7 @@ def update_lostandfound(lid):
 def create_announcement():
     from datetime import timedelta
     token = request.headers.get('X-Admin-Token', '')
-    if not token:
+    if not token or not token.startswith('v2_'):
         return jsonify({'error': 'Only admins can post announcements.'}), 403
     cutoff = datetime.utcnow() - timedelta(hours=24)
     session = AdminSession.query.filter_by(token=token).filter(

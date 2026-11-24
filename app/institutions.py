@@ -14,7 +14,7 @@ institutions_bp = Blueprint('institutions', __name__, url_prefix='/api/instituti
 
 def _require_admin():
     token = request.headers.get('X-Admin-Token', '')
-    if not token:
+    if not token or not token.startswith('v2_'):
         return None
     cutoff = datetime.utcnow() - timedelta(hours=24)
     session = AdminSession.query.filter_by(token=token).filter(
@@ -393,7 +393,7 @@ admin_inst_bp = Blueprint('admin_institutions', __name__, url_prefix='/api/admin
 
 def _require_admin_admin():
     token = request.headers.get('X-Admin-Token', '')
-    if not token:
+    if not token or not token.startswith('v2_'):
         return None
     cutoff = datetime.utcnow() - timedelta(hours=24)
     return AdminSession.query.filter_by(token=token).filter(

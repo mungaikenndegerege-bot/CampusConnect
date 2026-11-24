@@ -95,6 +95,51 @@ function navigate(section) {
   renders[section]();
 }
 
+async function searchPlatform() {
+  const input = document.getElementById('platform-search-input');
+  const query = input.value.trim();
+  if (!query) {
+    input.focus();
+    showToast('Enter something to search for.', 'error');
+    return;
+  }
+
+  openModal('<div class="spinner" role="status" aria-label="Searching"></div>');
+  try {
+    const data = await api('GET', '/api/search?q=' + encodeURIComponent(query));
+    const results = data.results || [];
+    const content = results.length
+      ? `<div class="search-results">${results.map((result, index) => `
+          <button class="search-result" type="button" data-result-index="${index}">
+            <span class="search-result-title">${escHtml(result.title)}</span>
+            <span class="search-result-meta">${escHtml(result.meta)}</span>
+            ${result.body ? `<span class="search-result-body">${escHtml(result.body)}</span>` : ''}
+          </button>`).join('')}</div>`
+      : '<div class="empty-state"><div class="empty-icon" aria-hidden="true">⌕</div><p>No matches yet. Try another search.</p></div>';
+    openModal(`
+      <section class="search-modal" aria-labelledby="search-results-title">
+        <p class="welcome-eyebrow">CAMPUSCONNECT SEARCH</p>
+        <h2 id="search-results-title">Results for “${escHtml(query)}”</h2>
+        <p class="search-summary">${results.length} ${results.length === 1 ? 'result' : 'results'} across posts, listings, news, and institutions.</p>
+        ${content}
+      </section>`);
+
+    document.querySelectorAll('.search-result').forEach(button => {
+      button.addEventListener('click', () => {
+        const result = results[Number(button.dataset.resultIndex)];
+        closeModal();
+        if (result.section === 'institution') {
+          openInstitutionCommunity(result.id);
+        } else {
+          openDetailModal(result.id, result.section);
+        }
+      });
+    });
+  } catch (error) {
+    openModal('<div class="empty-state"><p>Search could not be completed. Please try again.</p></div>');
+  }
+}
+
 function openPostForm(section) {
   if (section === 'community') openCommunityForm();
   else if (section === 'marketplace') openMarketplaceForm();
@@ -103,6 +148,14 @@ function openPostForm(section) {
 
 document.addEventListener('DOMContentLoaded', async () => {
   try { state.ads = await api('GET', '/api/ads/active'); } catch(e) { state.ads = []; }
+  const searchButton = document.getElementById('platform-search-button');
+  const searchInput = document.getElementById('platform-search-input');
+  if (searchButton && searchInput) {
+    searchButton.addEventListener('click', searchPlatform);
+    searchInput.addEventListener('keydown', event => {
+      if (event.key === 'Enter') searchPlatform();
+    });
+  }
   document.querySelectorAll('#bottom-nav button').forEach(b =>
     b.addEventListener('click', () => navigate(b.dataset.section))
   );

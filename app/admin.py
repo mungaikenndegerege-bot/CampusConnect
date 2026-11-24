@@ -5,8 +5,10 @@ from app import db
 from app.models import (Ad, Announcement, Post, MarketplaceItem, LostFoundItem,
                         AdminSession, Report,
                         Advertiser, AdCampaign, Advertisement, AdPlacement, AdPayment, AdDailyStat)
+from app.ratelimit import check_rate_limit
 import os
 from werkzeug.utils import secure_filename
+from werkzeug.security import check_password_hash
 
 admin_bp = Blueprint('admin_bp', __name__)
 
@@ -23,7 +25,7 @@ def save_upload(file):
 
 def require_admin():
     token = request.headers.get('X-Admin-Token')
-    if not token:
+    if not token or not token.startswith('v2_'):
         return None
     cutoff = datetime.utcnow() - timedelta(hours=24)
     session = AdminSession.query.filter(
@@ -38,11 +40,19 @@ def ad_to_dict(a):
             'created_at': a.created_at.isoformat()}
 
 @admin_bp.route('/api/admin/login', methods=['POST'])
+@check_rate_limit(5, 900)
 def admin_login():
-    d = request.get_json()
-    if not d or d.get('username') != 'Adminmungai' or d.get('password') != 'Mungai2300':
+    d = request.get_json(silent=True)
+    if not current_app.config.get('ADMIN_USERNAME') \
+            or not current_app.config.get('ADMIN_PASSWORD_HASH'):
+        current_app.logger.error('Admin login is disabled because credentials are not configured.')
+        return jsonify({'error': 'Admin login is not configured.'}), 503
+    if not isinstance(d, dict) \
+            or d.get('username') != current_app.config['ADMIN_USERNAME'] \
+            or not isinstance(d.get('password'), str) \
+            or not check_password_hash(current_app.config['ADMIN_PASSWORD_HASH'], d['password']):
         return jsonify({'error': 'Invalid credentials'}), 401
-    token = uuid.uuid4().hex
+    token = 'v2_' + uuid.uuid4().hex
     s = AdminSession(token=token)
     db.session.add(s); db.session.commit()
     return jsonify({'token': token})
