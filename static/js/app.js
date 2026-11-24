@@ -188,10 +188,9 @@ function showOpeningConfetti() {
     piece.style.setProperty('--confetti-duration', `${1600 + Math.random() * 900}ms`);
     piece.style.setProperty('--confetti-drift', `${Math.round(Math.random() * 180 - 90)}px`);
     piece.style.setProperty('--confetti-spin', `${Math.round(Math.random() * 720 - 360)}deg`);
+    piece.addEventListener('animationend', () => piece.remove(), { once: true });
     container.appendChild(piece);
   }
-
-  window.setTimeout(() => container.replaceChildren(), 2800);
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
