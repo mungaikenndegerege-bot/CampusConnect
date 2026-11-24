@@ -78,6 +78,9 @@ class CampusConnectWebTestCase(unittest.TestCase):
         self.assertIn(b'value="light"', response.data)
         self.assertIn(b'value="dark"', response.data)
         self.assertIn(b'class="brand-name"', response.data)
+        self.assertIn(b'class="theme-icon"', response.data)
+        self.assertNotIn(b'>Appearance</span>', response.data)
+        self.assertIn(b'id="opening-confetti"', response.data)
 
     def test_admin_login_uses_configured_password_hash_and_versioned_session(self):
         response = self.client.post('/api/admin/login', json={

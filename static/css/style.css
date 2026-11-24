@@ -464,11 +464,21 @@ select:focus-visible { outline: 3px solid rgba(118, 87, 246, 0.3); outline-offse
 .theme-control {
   display: flex;
   align-items: center;
-  gap: 7px;
   color: #e5e2f4;
   font-size: .76rem;
   font-weight: 600;
   white-space: nowrap;
+}
+.theme-icon {
+  width: 18px;
+  height: 18px;
+  margin-right: 7px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+  flex: none;
 }
 .theme-control select {
   min-height: 40px;
@@ -481,6 +491,41 @@ select:focus-visible { outline: 3px solid rgba(118, 87, 246, 0.3); outline-offse
   cursor: pointer;
 }
 .theme-control option { background: #fff; color: #1c2340; }
+#opening-confetti {
+  position: fixed;
+  inset: 0;
+  z-index: 999;
+  overflow: hidden;
+  pointer-events: none;
+}
+.confetti-piece {
+  position: absolute;
+  top: -32px;
+  width: 9px;
+  height: 14px;
+  border-radius: 2px;
+  background: var(--confetti-color);
+  opacity: 0;
+  animation: confetti-fall var(--confetti-duration) cubic-bezier(.2, .65, .35, 1) var(--confetti-delay) both;
+}
+.confetti-piece:nth-child(3n) { width: 8px; height: 8px; border-radius: 50%; }
+.confetti-word {
+  width: auto;
+  height: auto;
+  padding: 3px 8px;
+  border: 1px solid rgba(255,255,255,.55);
+  border-radius: 999px;
+  background: var(--confetti-color);
+  color: #fff;
+  font-size: .72rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+@keyframes confetti-fall {
+  0% { opacity: 0; transform: translate3d(0, -24px, 0) rotate(0); }
+  12% { opacity: 1; }
+  100% { opacity: 0; transform: translate3d(var(--confetti-drift), 110vh, 0) rotate(var(--confetti-spin)); }
+}
 #account-bar { display: flex; align-items: center; gap: 7px; padding: 2px; }
 .account-name {
   max-width: 180px;

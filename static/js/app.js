@@ -170,8 +170,33 @@ function initializeThemeControl() {
   });
 }
 
+function showOpeningConfetti() {
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+  const container = document.getElementById('opening-confetti');
+  const words = ['Campus', 'Connect', 'Feed', 'Market', 'Community', 'News'];
+  const colors = ['#a78bfa', '#f472b6', '#fbbf24', '#34d399', '#60a5fa', '#fb7185'];
+
+  for (let index = 0; index < 24; index += 1) {
+    const piece = document.createElement('span');
+    const isWord = index < words.length;
+    piece.className = isWord ? 'confetti-piece confetti-word' : 'confetti-piece';
+    piece.textContent = isWord ? words[index] : '';
+    piece.style.left = `${Math.random() * 94 + 3}%`;
+    piece.style.setProperty('--confetti-color', colors[Math.floor(Math.random() * colors.length)]);
+    piece.style.setProperty('--confetti-delay', `${Math.random() * 180}ms`);
+    piece.style.setProperty('--confetti-duration', `${1600 + Math.random() * 900}ms`);
+    piece.style.setProperty('--confetti-drift', `${Math.round(Math.random() * 180 - 90)}px`);
+    piece.style.setProperty('--confetti-spin', `${Math.round(Math.random() * 720 - 360)}deg`);
+    container.appendChild(piece);
+  }
+
+  window.setTimeout(() => container.replaceChildren(), 2800);
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
   initializeThemeControl();
+  showOpeningConfetti();
   try { state.ads = await api('GET', '/api/ads/active'); } catch(e) { state.ads = []; }
   const searchButton = document.getElementById('platform-search-button');
   const searchInput = document.getElementById('platform-search-input');
