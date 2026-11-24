@@ -384,3 +384,35 @@ class AdPayment(db.Model):
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'confirmed_at': self.confirmed_at.isoformat() if self.confirmed_at else None
         }
+
+
+class FeaturePost(db.Model):
+    __tablename__ = 'feature_posts'
+    id = db.Column(db.Integer, primary_key=True)
+    kind = db.Column(db.String(32), nullable=False, index=True)
+    title = db.Column(db.String(160), nullable=False)
+    body = db.Column(db.Text, nullable=False)
+    author_name = db.Column(db.String(100), nullable=False, default='CampusConnect community')
+    contact = db.Column(db.String(160))
+    location = db.Column(db.String(160))
+    price = db.Column(db.String(80))
+    category = db.Column(db.String(80))
+    event_date = db.Column(db.String(32))
+    deadline = db.Column(db.String(32))
+    external_url = db.Column(db.String(500))
+    poll_options = db.Column(db.Text)
+    anonymous = db.Column(db.Boolean, nullable=False, default=False)
+    active = db.Column(db.Boolean, nullable=False, default=True, index=True)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, index=True)
+
+
+class FeatureVote(db.Model):
+    __tablename__ = 'feature_votes'
+    id = db.Column(db.Integer, primary_key=True)
+    feature_id = db.Column(db.Integer, db.ForeignKey('feature_posts.id'), nullable=False, index=True)
+    voter_hash = db.Column(db.String(64), nullable=False)
+    option_index = db.Column(db.Integer, nullable=False)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    __table_args__ = (
+        db.UniqueConstraint('feature_id', 'voter_hash', name='uq_feature_vote_voter'),
+    )

@@ -91,7 +91,7 @@ function navigate(section) {
   } else {
     fab.style.display = 'none';
   }
-  const renders = { feed: renderFeed, community: renderCommunity, marketplace: renderMarketplace, lostandfound: renderLostFound, announcements: renderAnnouncements, institutions: renderInstitutions };
+  const renders = { feed: renderFeed, community: renderCommunity, marketplace: renderMarketplace, lostandfound: renderLostFound, announcements: renderAnnouncements, institutions: renderInstitutions, features: renderFeatureHub };
   renders[section]();
 }
 
@@ -130,6 +130,8 @@ async function searchPlatform() {
         closeModal();
         if (result.section === 'institution') {
           openInstitutionCommunity(result.id);
+        } else if (result.section === 'features') {
+          renderFeatureKind(result.kind);
         } else {
           openDetailModal(result.id, result.section);
         }

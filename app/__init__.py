@@ -14,9 +14,11 @@ def create_app():
     from app.public import public_bp
     from app.admin import admin_bp
     from app.accounts import accounts_bp
+    from app.features import features_bp
     app.register_blueprint(public_bp)
     app.register_blueprint(admin_bp)
     app.register_blueprint(accounts_bp)
+    app.register_blueprint(features_bp)
     from app.institutions import institutions_bp, admin_inst_bp
     app.register_blueprint(institutions_bp)
     app.register_blueprint(admin_inst_bp)

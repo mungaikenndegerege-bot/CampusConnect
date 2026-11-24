@@ -5,7 +5,7 @@ from datetime import datetime
 from app import db
 from app.models import (
     Post, Comment, MarketplaceItem, LostFoundItem, Announcement, Ad, Report,
-    AdminSession, Institution, InstitutionCategory, InstitutionPost
+    AdminSession, Institution, InstitutionCategory, InstitutionPost, FeaturePost
 )
 from app.ratelimit import check_rate_limit
 
@@ -75,13 +75,16 @@ def search():
 
     def add_results(query, section, title_getter, body_getter, meta_getter=lambda item: ''):
         for item in query.limit(8).all():
-            results.append({
+            result = {
                 'id': item.id,
                 'section': section,
                 'title': title_getter(item),
                 'body': body_getter(item)[:220],
                 'meta': meta_getter(item)
-            })
+            }
+            if section == 'features':
+                result['kind'] = item.kind
+            results.append(result)
 
     add_results(
         Post.query.filter(
@@ -155,6 +158,20 @@ def search():
             'body': post.body[:220],
             'meta': f'{post.institution.name} · Community discussion'
         })
+
+    add_results(
+        FeaturePost.query.filter(
+            FeaturePost.active.is_(True),
+            FeaturePost.kind != 'confessions',
+            db.or_(FeaturePost.title.ilike(pattern, escape='\\'),
+                   FeaturePost.body.ilike(pattern, escape='\\'),
+                   FeaturePost.location.ilike(pattern, escape='\\'),
+                   FeaturePost.category.ilike(pattern, escape='\\'))
+        ).order_by(FeaturePost.created_at.desc()),
+        'features', lambda item: item.title,
+        lambda item: item.body,
+        lambda item: item.kind.replace('_', ' ').title()
+    )
 
     return jsonify({'results': results[:48], 'query': term})
 
