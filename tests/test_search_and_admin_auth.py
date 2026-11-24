@@ -1,3 +1,6 @@
+from io import BytesIO
+import os
+import tempfile
 import json
 import unittest
 from unittest.mock import patch
@@ -28,6 +31,8 @@ class CampusConnectWebTestCase(unittest.TestCase):
             ADMIN_USERNAME='test-admin',
             ADMIN_PASSWORD_HASH=generate_password_hash('correct-test-password'),
         )
+        self.upload_dir = tempfile.TemporaryDirectory()
+        self.app.config['UPLOAD_FOLDER'] = self.upload_dir.name
         self.context = self.app.app_context()
         self.context.push()
         db.create_all()
@@ -37,6 +42,7 @@ class CampusConnectWebTestCase(unittest.TestCase):
         db.session.remove()
         db.drop_all()
         self.context.pop()
+        self.upload_dir.cleanup()
 
     def test_search_returns_matching_platform_content(self):
         category = InstitutionCategory(name='University')
@@ -148,6 +154,41 @@ class CampusConnectWebTestCase(unittest.TestCase):
             listed = self.client.get(f'/api/features?kind={kind}')
             self.assertEqual(listed.status_code, 200)
             self.assertEqual(listed.get_json()['items'][0]['kind'], kind)
+
+    def test_resource_files_can_be_uploaded_and_downloaded(self):
+        response = self.client.post('/api/features', data={
+            'kind': 'resources',
+            'title': 'Biology revision notes',
+            'body': 'Study notes for the biology unit.',
+            'author_name': 'Amina',
+            'resource_file': (BytesIO(b'%PDF-1.4 test notes'), 'biology-notes.pdf'),
+        }, content_type='multipart/form-data')
+
+        self.assertEqual(response.status_code, 201, response.get_json())
+        resource = response.get_json()
+        self.assertEqual(resource['file_name'], 'biology-notes.pdf')
+        self.assertTrue(resource['file_url'].startswith('/api/uploads/'))
+        listed = self.client.get('/api/features?kind=resources').get_json()['items'][0]
+        self.assertEqual(listed['file_name'], 'biology-notes.pdf')
+        self.assertEqual(listed['file_url'], resource['file_url'])
+        download = self.client.get(resource['file_url'] + '?download=1')
+        self.assertEqual(download.status_code, 200)
+        self.assertIn('attachment', download.headers['Content-Disposition'])
+        self.assertEqual(download.data, b'%PDF-1.4 test notes')
+        download.close()
+        self.assertEqual(len(os.listdir(self.upload_dir.name)), 1)
+
+    def test_resource_file_upload_rejects_unsupported_extensions(self):
+        response = self.client.post('/api/features', data={
+            'kind': 'resources',
+            'title': 'Unexpected file',
+            'body': 'This file type must not be stored.',
+            'author_name': 'Amina',
+            'resource_file': (BytesIO(b'not a document'), 'script.html'),
+        }, content_type='multipart/form-data')
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(os.listdir(self.upload_dir.name), [])
 
     def test_anonymous_and_lost_document_posts_protect_identity_and_contact(self):
         confession = self.client.post('/api/features', json={

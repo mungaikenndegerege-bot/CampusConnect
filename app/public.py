@@ -399,7 +399,11 @@ def click_ad(aid):
 
 @public_bp.route('/api/uploads/<filename>')
 def serve_upload(filename):
-    return send_from_directory(current_app.config['UPLOAD_FOLDER'], filename)
+    return send_from_directory(
+        current_app.config['UPLOAD_FOLDER'],
+        filename,
+        as_attachment=request.args.get('download') == '1',
+    )
 
 @public_bp.route('/api/report', methods=['POST'])
 @check_rate_limit(10, 3600)

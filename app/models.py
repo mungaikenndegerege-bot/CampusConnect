@@ -400,6 +400,8 @@ class FeaturePost(db.Model):
     event_date = db.Column(db.String(32))
     deadline = db.Column(db.String(32))
     external_url = db.Column(db.String(500))
+    file_path = db.Column(db.String(255))
+    file_name = db.Column(db.String(255))
     poll_options = db.Column(db.Text)
     anonymous = db.Column(db.Boolean, nullable=False, default=False)
     active = db.Column(db.Boolean, nullable=False, default=True, index=True)

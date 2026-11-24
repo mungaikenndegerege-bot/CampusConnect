@@ -32,10 +32,12 @@ The **More** navigation section contains Jobs & Attachments, Accommodation,
 Notes & Resources, Campus Deals, Events Calendar, Student Polls, Anonymous
 Confessions, Lost Documents, Buy & Sell Services, and the AI Study Assistant.
 These listings use new additive database tables created by the existing
-`seed.py` build step; existing content tables are not replaced. Anonymous
-confessions do not store a poster identity, and lost-document listings do not
-publish contact fields. Admin feature moderation is available through the
-authenticated `/api/admin/features` endpoints.
+`seed.py` build step; existing content tables are not replaced. Notes &
+Resources supports either a share link or an uploaded PDF, Office document,
+text, or CSV file up to 5 MB. The existing Render upload storage is used.
+Anonymous confessions do not store a poster identity, and lost-document
+listings do not publish contact fields. Admin feature moderation is available
+through the authenticated `/api/admin/features` endpoints.
 
 The administrator login now requires those environment variables. New admin
 sessions use a new token version; older sessions are rejected after deploying

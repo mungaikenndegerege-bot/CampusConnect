@@ -114,6 +114,9 @@ function renderFeatureCard(item) {
   if (item.external_url) {
     extra += `<a class="feature-external-link" href="${escHtml(item.external_url)}" target="_blank" rel="noopener noreferrer">Open link</a>`;
   }
+  if (item.file_url && item.file_name) {
+    extra += `<a class="feature-external-link feature-download-link" href="${escHtml(item.file_url)}?download=1" download="${escHtml(item.file_name)}">Download ${escHtml(item.file_name)}</a>`;
+  }
   if (item.contact && item.kind !== 'lost_documents') {
     extra += `<p class="feature-contact">Contact: ${escHtml(item.contact)}</p>`;
   }
@@ -190,12 +193,16 @@ function openFeatureForm(kind) {
   const pollOptions = kind === 'polls'
     ? `<div class="form-group"><label for="feature-options">Choices (one per line, 2\u20136 choices)</label><textarea id="feature-options" rows="5" placeholder="First choice&#10;Second choice"></textarea></div>`
     : '';
+  const resourceUpload = kind === 'resources'
+    ? `<div class="form-group"><label for="feature-resource-file">Upload a file (optional)</label><input id="feature-resource-file" type="file" accept=".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt,.csv"><span class="optional-label">PDF, Word, PowerPoint, Excel, TXT, or CSV; max 5 MB. You can also share a link instead.</span></div>`
+    : '';
   openModal(`<form id="feature-form">
     <h2 class="form-title">${feature.icon} Share ${escHtml(feature.title)}</h2>
     ${privacyWarning}${confessionNote}
     <div class="form-group"><label for="feature-title">Title *</label><input id="feature-title" maxlength="160" required></div>
     <div class="form-group"><label for="feature-body">${kind === 'polls' ? 'Question / context *' : 'Description *'}</label><textarea id="feature-body" maxlength="4000" rows="4" required></textarea></div>
     ${featureFields[kind].map(renderFeatureField).join('')}
+    ${resourceUpload}
     ${pollOptions}
     <button class="btn-primary" type="submit">Publish</button>
   </form>`);
@@ -219,7 +226,23 @@ async function submitFeature(kind) {
     payload.options = document.getElementById('feature-options').value.split(/\r?\n/).map(option => option.trim()).filter(Boolean);
   }
   try {
-    await api('POST', '/api/features', payload);
+    const resourceFile = kind === 'resources' && document.getElementById('feature-resource-file')?.files[0];
+    if (resourceFile) {
+      if (resourceFile.size > 5 * 1024 * 1024) {
+        showToast('Files must be 5 MB or smaller.', 'error');
+        return;
+      }
+      const formData = new FormData();
+      Object.entries(payload).forEach(([name, value]) => {
+        if (value !== undefined && value !== null) {
+          formData.append(name, typeof value === 'string' ? value : JSON.stringify(value));
+        }
+      });
+      formData.append('resource_file', resourceFile);
+      await api('POST', '/api/features', formData, true);
+    } else {
+      await api('POST', '/api/features', payload);
+    }
     closeModal();
     showToast('Published successfully!', 'success');
     renderFeatureKind(kind);

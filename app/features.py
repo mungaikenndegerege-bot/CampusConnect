@@ -3,6 +3,7 @@ import hmac
 import ipaddress
 import json
 import os
+import uuid
 from datetime import date, datetime, timedelta
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
@@ -11,6 +12,7 @@ from urllib.request import Request, urlopen
 from flask import Blueprint, abort, current_app, jsonify, request
 from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
+from werkzeug.utils import secure_filename
 
 from app import db
 from app.models import AdminSession, FeaturePost, FeatureVote
@@ -22,6 +24,7 @@ FEATURE_KINDS = {
     'jobs', 'accommodation', 'resources', 'deals', 'events',
     'polls', 'confessions', 'lost_documents', 'services',
 }
+RESOURCE_FILE_EXTENSIONS = {'pdf', 'doc', 'docx', 'ppt', 'pptx', 'xls', 'xlsx', 'txt', 'csv'}
 TEXT_LIMITS = {
     'title': 160,
     'body': 4000,
@@ -55,6 +58,8 @@ def _serialize_feature(item, poll_counts=None):
         'event_date': item.event_date,
         'deadline': item.deadline,
         'external_url': item.external_url,
+        'file_url': f'/api/uploads/{item.file_path}' if item.file_path else None,
+        'file_name': item.file_name,
         'anonymous': item.kind == 'confessions',
         'created_at': item.created_at.isoformat() if item.created_at else None,
     }
@@ -98,6 +103,20 @@ def _valid_url(value):
     return value
 
 
+def _save_resource_file(upload):
+    if not upload or not upload.filename:
+        return None, None
+    safe_name = secure_filename(upload.filename)
+    if not safe_name or '.' not in safe_name:
+        raise ValueError('Choose a supported resource file.')
+    extension = safe_name.rsplit('.', 1)[1].lower()
+    if extension not in RESOURCE_FILE_EXTENSIONS:
+        raise ValueError('Use a PDF, Office document, text, or CSV file.')
+    stored_name = f'{uuid.uuid4().hex}.{extension}'
+    upload.save(os.path.join(current_app.config['UPLOAD_FOLDER'], stored_name))
+    return stored_name, safe_name[:255]
+
+
 @features_bp.route('/api/features', methods=['GET'])
 def list_features():
     kind = _clean(request.args.get('kind'))
@@ -122,7 +141,7 @@ def list_features():
 @features_bp.route('/api/features', methods=['POST'])
 @check_rate_limit(12, 3600)
 def create_feature():
-    data = request.get_json(silent=True)
+    data = request.form.to_dict() if request.files else request.get_json(silent=True)
     if not isinstance(data, dict):
         return jsonify({'error': 'Send a valid JSON request.'}), 400
     kind = _clean(data.get('kind'))
@@ -144,10 +163,14 @@ def create_feature():
     if kind == 'confessions':
         fields['author_name'] = 'Anonymous'
 
+    resource_file = request.files.get('resource_file') if kind == 'resources' else None
+    if kind != 'resources' and request.files:
+        return jsonify({'error': 'File uploads are only supported for Notes & Resources.'}), 400
     try:
         fields['external_url'] = _valid_url(fields['external_url'])
         event_date = _valid_date(_clean(data.get('event_date')), 'Event date')
         deadline = _valid_date(_clean(data.get('deadline')), 'Deadline')
+        file_path, file_name = _save_resource_file(resource_file)
     except ValueError as error:
         return jsonify({'error': str(error)}), 400
 
@@ -177,6 +200,8 @@ def create_feature():
         event_date=event_date,
         deadline=deadline,
         external_url=fields['external_url'] or None,
+        file_path=file_path,
+        file_name=file_name,
         poll_options=json.dumps(options) if options else None,
         anonymous=kind == 'confessions',
     )
