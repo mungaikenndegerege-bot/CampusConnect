@@ -73,6 +73,11 @@ class CampusConnectWebTestCase(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn(b'Kila Kitu Made Easy.', response.data)
         self.assertIn(b'platform-search-input', response.data)
+        self.assertIn(b'id="theme-select"', response.data)
+        self.assertIn(b'value="system"', response.data)
+        self.assertIn(b'value="light"', response.data)
+        self.assertIn(b'value="dark"', response.data)
+        self.assertIn(b'class="brand-name"', response.data)
 
     def test_admin_login_uses_configured_password_hash_and_versioned_session(self):
         response = self.client.post('/api/admin/login', json={

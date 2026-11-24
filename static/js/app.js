@@ -146,7 +146,32 @@ function openPostForm(section) {
   else if (section === 'lostandfound') openLostFoundForm();
 }
 
+function applyTheme(mode) {
+  const isDark = mode === 'dark' ||
+    (mode === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+  document.documentElement.dataset.theme = isDark ? 'dark' : 'light';
+  document.querySelector('meta[name="theme-color"]').content = isDark ? '#0e1222' : '#f6f5fb';
+}
+
+function initializeThemeControl() {
+  const themeSelect = document.getElementById('theme-select');
+  const savedTheme = localStorage.getItem('cc_theme');
+  const initialTheme = ['light', 'dark', 'system'].includes(savedTheme) ? savedTheme : 'system';
+
+  themeSelect.value = initialTheme;
+  applyTheme(initialTheme);
+  themeSelect.addEventListener('change', () => {
+    const mode = themeSelect.value;
+    localStorage.setItem('cc_theme', mode);
+    applyTheme(mode);
+  });
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+    if (themeSelect.value === 'system') applyTheme('system');
+  });
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
+  initializeThemeControl();
   try { state.ads = await api('GET', '/api/ads/active'); } catch(e) { state.ads = []; }
   const searchButton = document.getElementById('platform-search-button');
   const searchInput = document.getElementById('platform-search-input');

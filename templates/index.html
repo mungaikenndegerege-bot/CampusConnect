@@ -5,6 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>CampusConnect | Kila Kitu Made Easy.</title>
   <meta name="description" content="CampusConnect brings Kenya's student community, marketplace, campus news, and institutions together.">
+  <script>
+    const savedTheme = localStorage.getItem('cc_theme');
+    const themeMode = ['light', 'dark', 'system'].includes(savedTheme) ? savedTheme : 'system';
+    document.documentElement.dataset.theme = themeMode === 'system'
+      ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+      : themeMode;
+  </script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
@@ -16,10 +23,20 @@
   <div id="app-shell">
     <header id="top-bar">
       <div class="logo-area">
-        <h1>CampusConnect</h1>
+        <h1 class="brand-name">CampusConnect</h1>
         <p class="tagline">Kila Kitu Made Easy.</p>
       </div>
-      <div id="account-bar"></div>
+      <div id="header-actions">
+        <label class="theme-control">
+          <span>Appearance</span>
+          <select id="theme-select" aria-label="Choose appearance">
+            <option value="system">Device</option>
+            <option value="light">Light</option>
+            <option value="dark">Dark</option>
+          </select>
+        </label>
+        <div id="account-bar"></div>
+      </div>
     </header>
     <section class="welcome-panel" aria-label="Welcome to CampusConnect">
       <div class="welcome-copy">

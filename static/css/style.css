@@ -370,6 +370,8 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
   --accent: #ffbd66;
   --bg: #f6f5fb;
   --card-bg: #ffffff;
+  --surface-raised: #ffffff;
+  --surface-input: #ffffff;
   --text: #1c2340;
   --text-muted: #777b91;
   --border: #e8e7f0;
@@ -378,12 +380,47 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
   --navy: #111936;
 }
 
+[data-theme="dark"] {
+  color-scheme: dark;
+  --primary: #a38eff;
+  --primary-dark: #b7a8ff;
+  --accent: #ffc878;
+  --bg: #0e1222;
+  --card-bg: #171d31;
+  --surface-raised: #1c243a;
+  --surface-input: #11182a;
+  --text: #e8eaf3;
+  --text-muted: #a3a9bc;
+  --border: #303851;
+  --shadow: 0 8px 26px rgba(0, 0, 0, .22);
+  --navy: #111936;
+}
+
+@media (prefers-color-scheme: dark) {
+  [data-theme="system"] {
+    color-scheme: dark;
+    --primary: #a38eff;
+    --primary-dark: #b7a8ff;
+    --accent: #ffc878;
+    --bg: #0e1222;
+    --card-bg: #171d31;
+    --surface-raised: #1c243a;
+    --surface-input: #11182a;
+    --text: #e8eaf3;
+    --text-muted: #a3a9bc;
+    --border: #303851;
+    --shadow: 0 8px 26px rgba(0, 0, 0, .22);
+    --navy: #111936;
+  }
+}
+
 html { scroll-behavior: smooth; }
 body {
   font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   background: var(--bg);
   color: var(--text);
   line-height: 1.5;
+  transition: background-color .2s ease, color .2s ease;
 }
 button, input, textarea, select { font: inherit; }
 button, a { -webkit-tap-highlight-color: transparent; }
@@ -406,7 +443,44 @@ select:focus-visible { outline: 3px solid rgba(118, 87, 246, 0.3); outline-offse
   font-weight: 800;
   letter-spacing: -0.035em;
 }
+.brand-name {
+  display: inline-block;
+  background: linear-gradient(100deg, #fff 20%, #c4b5fd 45%, #fff 70%);
+  background-size: 220% auto;
+  background-clip: text;
+  color: transparent;
+  animation: brand-shimmer 5s ease-in-out infinite, brand-float 3s ease-in-out infinite;
+}
+@keyframes brand-shimmer {
+  from { background-position: 100% center; }
+  to { background-position: -120% center; }
+}
+@keyframes brand-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-2px); }
+}
 .tagline { margin-top: 1px; color: #d7d4ee; font-size: 0.78rem; }
+#header-actions { display: flex; align-items: center; gap: 12px; }
+.theme-control {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: #e5e2f4;
+  font-size: .76rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.theme-control select {
+  min-height: 40px;
+  padding: 0 28px 0 10px;
+  border: 1px solid rgba(255,255,255,.28);
+  border-radius: 12px;
+  background: rgba(255,255,255,.08);
+  color: #fff;
+  font-size: .8rem;
+  cursor: pointer;
+}
+.theme-control option { background: #fff; color: #1c2340; }
 #account-bar { display: flex; align-items: center; gap: 7px; padding: 2px; }
 .account-name {
   max-width: 180px;
@@ -471,7 +545,7 @@ select:focus-visible { outline: 3px solid rgba(118, 87, 246, 0.3); outline-offse
   padding: 0 14px;
   border: 0;
   border-radius: 10px;
-  background: #fff;
+  background: var(--surface-input);
   color: var(--text);
   font-size: .9rem;
 }
@@ -580,7 +654,7 @@ select:focus-visible { outline: 3px solid rgba(118, 87, 246, 0.3); outline-offse
   padding: 16px;
   border: 1px solid var(--border);
   border-radius: 16px;
-  background: #fff;
+  background: var(--surface-raised);
   color: var(--text);
   text-align: left;
   cursor: pointer;
@@ -597,15 +671,60 @@ select:focus-visible { outline: 3px solid rgba(118, 87, 246, 0.3); outline-offse
 }
 .search-summary { margin: 0 0 16px; color: var(--text-muted); font-size: .86rem; }
 
+[data-theme="dark"] #bottom-nav,
+[data-theme="dark"] #modal-box,
+[data-theme="dark"] .card,
+[data-theme="dark"] .inst-card,
+[data-theme="dark"] .load-more-btn,
+[data-theme="dark"] .admin-tab-btn,
+[data-theme="dark"] .admin-item,
+[data-theme="dark"] .admin-form,
+[data-theme="dark"] .form-group input,
+[data-theme="dark"] .form-group textarea,
+[data-theme="dark"] .form-group select,
+[data-theme="dark"] .form-input,
+[data-theme="dark"] .add-comment-form input,
+[data-theme="dark"] .add-comment-form textarea,
+[data-theme="dark"] .search-result,
+[data-theme="dark"] .inst-category-tabs button {
+  border-color: var(--border);
+  background-color: var(--surface-raised);
+  color: var(--text);
+}
+[data-theme="dark"] .form-group input,
+[data-theme="dark"] .form-group textarea,
+[data-theme="dark"] .form-group select,
+[data-theme="dark"] .form-input,
+[data-theme="dark"] .add-comment-form input,
+[data-theme="dark"] .add-comment-form textarea {
+  background-color: var(--surface-input);
+}
+[data-theme="dark"] .section-title,
+[data-theme="dark"] .search-modal h2 { color: var(--text); }
+[data-theme="dark"] .advertise-strip { color: var(--text-muted); }
+[data-theme="dark"] .badge { background: #30284f; color: #d0c5ff; }
+[data-theme="dark"] .badge-accent { background: #4a3524; color: #ffd29b; }
+[data-theme="dark"] .badge-green { background: #1e3d35; color: #a4e4c2; }
+[data-theme="dark"] .badge-red { background: #492b36; color: #ffb7c5; }
+[data-theme="dark"] .comment { border-color: var(--border); }
+[data-theme="dark"] .admin-tab-btn.active,
+[data-theme="dark"] .inst-category-tabs button.active {
+  background: var(--primary);
+  color: #17112d;
+}
+
 @media (min-width: 900px) {
   #main-content { padding-top: 14px; }
   .welcome-panel { margin-top: 30px; }
   #bottom-nav button { flex-direction: row; justify-content: center; gap: 8px; font-size: .8rem; }
 }
 @media (max-width: 520px) {
-  #top-bar { padding-right: 12px; padding-left: 16px; }
+  #top-bar { display: grid; gap: 10px; padding-right: 12px; padding-left: 16px; }
   #top-bar h1 { font-size: 1.12rem; }
   .tagline { font-size: .7rem; }
+  #header-actions { justify-content: space-between; gap: 8px; }
+  .theme-control { font-size: .72rem; }
+  .theme-control select { min-height: 38px; }
   #account-bar { gap: 4px; }
   .account-name { display: none; }
   .account-bar-btn { min-height: 38px; padding: 7px 9px; font-size: .72rem; }
