@@ -858,20 +858,27 @@ select:focus-visible { outline: 3px solid rgba(118, 87, 246, 0.3); outline-offse
   .platform-search input { padding: 0 10px; font-size: .8rem; }
   .platform-search button { min-width: 74px; padding: 0 11px; font-size: .8rem; }
   .advertise-strip { margin-top: 8px; padding: 8px 16px; font-size: .78rem; }
-  #main-content { padding: 8px 12px 112px; }
-  #bottom-nav { overflow-x: hidden; justify-content: space-around; }
+  #main-content { padding: 8px 12px 164px; }
+  #bottom-nav {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 4px;
+    overflow: hidden;
+    padding: 6px 6px env(safe-area-inset-bottom);
+  }
   #bottom-nav button {
-    flex: 1 1 0;
     min-width: 0;
     max-width: none;
-    gap: 1px;
-    padding: 6px 1px;
-    font-size: .55rem;
-    line-height: 1.1;
+    min-height: 46px;
+    gap: 2px;
+    padding: 4px 2px;
+    font-size: .72rem;
+    line-height: 1.15;
+    white-space: normal;
   }
-  #bottom-nav .nav-icon { font-size: 1rem; }
-  #fab-container { right: 14px; bottom: 82px; }
-  #app-footer { padding-bottom: 100px; }
+  #bottom-nav .nav-icon { font-size: 1.1rem; }
+  #fab-container { right: 14px; bottom: 132px; }
+  #app-footer { padding-bottom: 160px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
