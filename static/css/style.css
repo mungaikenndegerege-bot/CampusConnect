@@ -420,8 +420,8 @@ body {
   background: var(--bg);
   color: var(--text);
   line-height: 1.5;
-  transition: background-color .2s ease, color .2s ease;
 }
+html body { background-color: var(--bg); }
 button, input, textarea, select { font: inherit; }
 button, a { -webkit-tap-highlight-color: transparent; }
 button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visible,
