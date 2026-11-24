@@ -874,7 +874,7 @@ select:focus-visible { outline: 3px solid rgba(118, 87, 246, 0.3); outline-offse
   #main-content { padding: 8px 12px 164px; }
   #bottom-nav {
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 4px;
     overflow: hidden;
     padding: 6px 6px env(safe-area-inset-bottom);
