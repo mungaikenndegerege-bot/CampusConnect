@@ -529,3 +529,145 @@ class FeatureVote(db.Model):
     __table_args__ = (
         db.UniqueConstraint('feature_id', 'voter_hash', name='uq_feature_vote_voter'),
     )
+
+
+# --- Private Messaging Models ---
+
+class Conversation(db.Model):
+    __tablename__ = 'conversations'
+    id = db.Column(db.Integer, primary_key=True)
+    participant_a_id = db.Column(db.Integer, db.ForeignKey('account.id'), nullable=False)
+    participant_b_id = db.Column(db.Integer, db.ForeignKey('account.id'), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    last_message_at = db.Column(db.DateTime, default=datetime.utcnow)
+    participant_a = db.relationship('Account', foreign_keys=[participant_a_id])
+    participant_b = db.relationship('Account', foreign_keys=[participant_b_id])
+    messages = db.relationship('Message', backref='conversation', lazy=True, order_by='Message.created_at')
+    __table_args__ = (
+        db.UniqueConstraint('participant_a_id', 'participant_b_id', name='uq_conversation_pair'),
+    )
+
+    def to_dict(self, current_account_id=None):
+        other = None
+        if current_account_id:
+            if self.participant_a_id == current_account_id:
+                other = self.participant_b
+            else:
+                other = self.participant_a
+        return {
+            'id': self.id,
+            'participant_a_id': self.participant_a_id,
+            'participant_b_id': self.participant_b_id,
+            'participant_a_name': self.participant_a.name if self.participant_a else None,
+            'participant_b_name': self.participant_b.name if self.participant_b else None,
+            'other_name': other.name if other else None,
+            'other_id': other.id if other else None,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'last_message_at': self.last_message_at.isoformat() if self.last_message_at else None,
+        }
+
+
+class Message(db.Model):
+    __tablename__ = 'messages'
+    id = db.Column(db.Integer, primary_key=True)
+    conversation_id = db.Column(db.Integer, db.ForeignKey('conversations.id'), nullable=False, index=True)
+    sender_id = db.Column(db.Integer, db.ForeignKey('account.id'), nullable=False)
+    body = db.Column(db.Text, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    read_at = db.Column(db.DateTime, nullable=True)
+    sender = db.relationship('Account', foreign_keys=[sender_id])
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'conversation_id': self.conversation_id,
+            'sender_id': self.sender_id,
+            'sender_name': self.sender.name if self.sender else None,
+            'body': self.body,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'read_at': self.read_at.isoformat() if self.read_at else None,
+        }
+
+
+# --- Roommate Finder Model ---
+
+class RoommateListing(db.Model):
+    __tablename__ = 'roommate_listings'
+    id = db.Column(db.Integer, primary_key=True)
+    poster_name = db.Column(db.String(100), nullable=False)
+    poster_contact = db.Column(db.String(100), nullable=False)
+    institution = db.Column(db.String(200), nullable=True)
+    location = db.Column(db.String(200), nullable=False)
+    budget_min = db.Column(db.Integer, default=0)
+    budget_max = db.Column(db.Integer, default=0)
+    description = db.Column(db.Text, nullable=False)
+    gender_preference = db.Column(db.String(20), default='Any')
+    move_in_date = db.Column(db.String(50), nullable=True)
+    active = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    owner_token_hash = db.Column(db.String(64), nullable=True)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'poster_name': self.poster_name,
+            'poster_contact': self.poster_contact,
+            'institution': self.institution,
+            'location': self.location,
+            'budget_min': self.budget_min,
+            'budget_max': self.budget_max,
+            'description': self.description,
+            'gender_preference': self.gender_preference,
+            'move_in_date': self.move_in_date,
+            'active': self.active,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+        }
+
+
+# --- Learning Hub Model ---
+
+class LearningResource(db.Model):
+    __tablename__ = 'learning_resources'
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String(200), nullable=False)
+    description = db.Column(db.Text, nullable=True)
+    subject = db.Column(db.String(100), nullable=False)
+    resource_type = db.Column(db.String(30), nullable=False)  # notes/past_paper/textbook/other
+    institution_name = db.Column(db.String(200), nullable=True)
+    file_path = db.Column(db.String(300), nullable=False)
+    file_type = db.Column(db.String(10), nullable=False)  # pdf/doc/docx/image
+    uploader_name = db.Column(db.String(100), nullable=False)
+    uploader_contact = db.Column(db.String(100), nullable=True)
+    download_count = db.Column(db.Integer, default=0)
+    active = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    owner_token_hash = db.Column(db.String(64), nullable=True)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'title': self.title,
+            'description': self.description,
+            'subject': self.subject,
+            'resource_type': self.resource_type,
+            'institution_name': self.institution_name,
+            'file_path': self.file_path,
+            'file_type': self.file_type,
+            'uploader_name': self.uploader_name,
+            'uploader_contact': self.uploader_contact,
+            'download_count': self.download_count,
+            'active': self.active,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+        }
+
+
+# --- Password Reset Token Model ---
+
+class PasswordResetToken(db.Model):
+    __tablename__ = 'password_reset_tokens'
+    id = db.Column(db.Integer, primary_key=True)
+    account_id = db.Column(db.Integer, db.ForeignKey('account.id'), nullable=False)
+    token = db.Column(db.String(64), unique=True, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    used = db.Column(db.Boolean, default=False)
+    account = db.relationship('Account')

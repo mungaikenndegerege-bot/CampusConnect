@@ -1,11 +1,12 @@
 import secrets
 import re
+import hashlib
 from datetime import datetime, timedelta
 from flask import Blueprint, request, jsonify
 from werkzeug.security import generate_password_hash, check_password_hash
 from sqlalchemy.exc import IntegrityError
 from app import db
-from app.models import Account, AccountSession, Institution
+from app.models import Account, AccountSession, Institution, PasswordResetToken
 from app.ratelimit import check_rate_limit
 
 accounts_bp = Blueprint('accounts_bp', __name__)
@@ -129,3 +130,88 @@ def logout():
         AccountSession.query.filter_by(token=token).delete()
         db.session.commit()
     return jsonify({'ok': True})
+
+
+@accounts_bp.route('/api/accounts/search', methods=['GET'])
+def search_accounts():
+    token = request.headers.get('X-Account-Token')
+    account = _get_account(token)
+    if not account or not account.active:
+        return jsonify({'error': 'Unauthorized'}), 401
+    q = request.args.get('q', '').strip()
+    if not q or len(q) > 100:
+        return jsonify([])
+    pattern = f'%{q}%'
+    results = Account.query.filter(
+        Account.active.is_(True),
+        Account.id != account.id,
+        db.or_(
+            Account.name.ilike(pattern),
+            Account.email.ilike(pattern),
+        )
+    ).limit(10).all()
+    return jsonify([
+        {
+            'id': a.id,
+            'name': a.name,
+            'bio': a.bio,
+            'institution_name': a.institution.name if a.institution else None,
+        }
+        for a in results
+    ])
+
+
+@accounts_bp.route('/api/accounts/reset-request', methods=['POST'])
+@check_rate_limit(3, 3600)
+def reset_request():
+    d = request.get_json(silent=True)
+    if not isinstance(d, dict):
+        return jsonify({'error': 'A JSON object is required.'}), 400
+    email = d.get('email', '').strip().lower()
+    if not email:
+        return jsonify({'error': 'Email is required.'}), 400
+    account = Account.query.filter_by(email=email, active=True).first()
+    if not account:
+        # Don't reveal whether the account exists
+        return jsonify({'message': 'If that email is registered, a reset token has been generated. Copy this token and keep it safe.', 'token': None}), 200
+    plain_token = secrets.token_urlsafe(32)
+    reset = PasswordResetToken(
+        account_id=account.id,
+        token=plain_token,
+    )
+    db.session.add(reset)
+    db.session.commit()
+    return jsonify({
+        'token': plain_token,
+        'message': 'Copy this token and keep it safe. It expires in 1 hour.',
+    }), 200
+
+
+@accounts_bp.route('/api/accounts/reset-confirm', methods=['POST'])
+def reset_confirm():
+    d = request.get_json(silent=True)
+    if not isinstance(d, dict):
+        return jsonify({'error': 'A JSON object is required.'}), 400
+    email = d.get('email', '').strip().lower()
+    token_val = d.get('token', '').strip()
+    new_password = d.get('new_password', '')
+    if not email or not token_val or not new_password:
+        return jsonify({'error': 'email, token, and new_password are required.'}), 400
+    if len(new_password) < 8 or len(new_password) > 128:
+        return jsonify({'error': 'Password must be 8-128 characters.'}), 400
+    account = Account.query.filter_by(email=email, active=True).first()
+    if not account:
+        return jsonify({'error': 'Invalid email or token.'}), 400
+    cutoff = datetime.utcnow() - timedelta(hours=1)
+    reset = PasswordResetToken.query.filter(
+        PasswordResetToken.account_id == account.id,
+        PasswordResetToken.token == token_val,
+        PasswordResetToken.used.is_(False),
+        PasswordResetToken.created_at >= cutoff,
+    ).first()
+    if not reset:
+        return jsonify({'error': 'Invalid or expired token.'}), 400
+    account.password_hash = generate_password_hash(new_password)
+    reset.used = True
+    db.session.commit()
+    return jsonify({'ok': True, 'message': 'Password has been reset. You can now log in.'})

@@ -61,6 +61,9 @@ def create_app(config_overrides=None):
     app.register_blueprint(tracking_bp)
     from app.campus import campus_bp
     app.register_blueprint(campus_bp)
+
+    from app.messaging import messaging_bp
+    app.register_blueprint(messaging_bp)
     app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1)
 
     @app.errorhandler(StorageError)

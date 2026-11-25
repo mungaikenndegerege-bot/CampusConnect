@@ -22,6 +22,11 @@ with app.app_context():
     _add_col_if_missing('institution_posts', 'file_type', 'file_type VARCHAR(20)')
     _add_col_if_missing('feature_posts', 'file_path', 'file_path VARCHAR(255)')
     _add_col_if_missing('feature_posts', 'file_name', 'file_name VARCHAR(255)')
+
+    # New tables (db.create_all handles creation; these calls are no-ops if already present)
+    # conversations, messages, roommate_listings, learning_resources, password_reset_tokens
+    # are all created by db.create_all() above.
+
     from app.institutions_seed import seed_institutions
     seed_institutions()
     from app.models import AdPlacement

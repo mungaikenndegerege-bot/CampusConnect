@@ -83,6 +83,9 @@ function switchAccountTab(tab) {
         </div>
         <div id="login-error" style="color:#ef4444;font-size:0.82rem;margin-bottom:8px;display:none"></div>
         <button onclick="submitLogin()" class="btn btn-primary" style="width:100%">Sign In</button>
+        <div style="text-align:center;margin-top:12px">
+          <button onclick="showForgotPassword()" style="background:none;border:none;color:#6C3CE1;cursor:pointer;font-size:.85rem;text-decoration:underline">Forgot password?</button>
+        </div>
       </div>
     `;
   } else {
@@ -157,6 +160,123 @@ async function signOut() {
 
 function showMyPosts() {
   showToast('My Posts feature coming soon!', 'info');
+}
+
+function showForgotPassword() {
+  const content = document.getElementById('account-modal-content');
+  if (!content) return;
+  content.innerHTML = `
+    <div>
+      <h4 style="margin-bottom:12px;font-size:.95rem">Reset Your Password</h4>
+      <p style="font-size:.82rem;color:#6b7280;margin-bottom:12px">Step 1: Enter your email to get a reset token.</p>
+      <div style="margin-bottom:10px">
+        <label style="font-size:0.85rem;font-weight:600">Email</label>
+        <input id="reset-email" class="form-input" type="email" placeholder="you@example.com" style="margin-top:4px">
+      </div>
+      <div id="reset-error" style="color:#ef4444;font-size:0.82rem;margin-bottom:8px;display:none"></div>
+      <button onclick="submitResetRequest()" class="btn btn-primary" style="width:100%">Get Reset Token</button>
+      <div style="text-align:center;margin-top:10px">
+        <button onclick="switchAccountTab('login')" style="background:none;border:none;color:#6C3CE1;cursor:pointer;font-size:.82rem">Back to Login</button>
+      </div>
+    </div>
+  `;
+}
+
+async function submitResetRequest() {
+  const email = (document.getElementById('reset-email').value || '').trim();
+  const errEl = document.getElementById('reset-error');
+  errEl.style.display = 'none';
+  if (!email) {
+    errEl.textContent = 'Please enter your email.';
+    errEl.style.display = 'block';
+    return;
+  }
+  try {
+    const res = await fetch('/api/accounts/reset-request', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email }),
+    });
+    const data = await res.json().catch(() => ({}));
+    const content = document.getElementById('account-modal-content');
+    if (!content) return;
+    if (data.token) {
+      content.innerHTML = `
+        <div>
+          <h4 style="margin-bottom:10px">Your Reset Token</h4>
+          <p style="font-size:.82rem;color:#6b7280;margin-bottom:10px">Copy this token now — it expires in 1 hour.</p>
+          <div class="reset-token-box">${escHtml(data.token)}</div>
+          <p style="font-size:.78rem;color:#6b7280;margin:10px 0">Keep it safe. Use it on the next screen.</p>
+          <button onclick="showResetConfirm('${escHtml(email).replace(/'/g,"\\'")}', '${escHtml(data.token).replace(/'/g,"\\'")}');" class="btn btn-primary" style="width:100%;margin-top:8px">I've Copied It — Continue</button>
+        </div>
+      `;
+    } else {
+      // Account not found (but we don't reveal that explicitly)
+      content.innerHTML = `
+        <div style="text-align:center">
+          <p style="margin-bottom:14px;font-size:.88rem">If that email is registered, a reset token was generated. Check this page.</p>
+          <button onclick="switchAccountTab('login')" class="btn btn-primary">Back to Login</button>
+        </div>
+      `;
+    }
+  } catch (e) {
+    const errEl = document.getElementById('reset-error');
+    if (errEl) {
+      errEl.textContent = 'Request failed. Please try again.';
+      errEl.style.display = 'block';
+    }
+  }
+}
+
+function showResetConfirm(email, token) {
+  const content = document.getElementById('account-modal-content');
+  if (!content) return;
+  content.innerHTML = `
+    <div>
+      <h4 style="margin-bottom:10px">Step 2: Set New Password</h4>
+      <div style="margin-bottom:10px">
+        <label style="font-size:0.85rem;font-weight:600">Email</label>
+        <input id="rc-email" class="form-input" type="email" value="${escHtml(email)}" style="margin-top:4px">
+      </div>
+      <div style="margin-bottom:10px">
+        <label style="font-size:0.85rem;font-weight:600">Reset Token</label>
+        <input id="rc-token" class="form-input" value="${escHtml(token)}" style="margin-top:4px;font-family:monospace">
+      </div>
+      <div style="margin-bottom:14px">
+        <label style="font-size:0.85rem;font-weight:600">New Password (min 8 chars)</label>
+        <input id="rc-password" class="form-input" type="password" placeholder="New password" style="margin-top:4px">
+      </div>
+      <div id="rc-error" style="color:#ef4444;font-size:0.82rem;margin-bottom:8px;display:none"></div>
+      <button onclick="submitResetConfirm()" class="btn btn-primary" style="width:100%">Reset Password</button>
+    </div>
+  `;
+}
+
+async function submitResetConfirm() {
+  const email = (document.getElementById('rc-email').value || '').trim();
+  const token = (document.getElementById('rc-token').value || '').trim();
+  const new_password = document.getElementById('rc-password').value || '';
+  const errEl = document.getElementById('rc-error');
+  errEl.style.display = 'none';
+  if (!email || !token || !new_password) {
+    errEl.textContent = 'All fields are required.';
+    errEl.style.display = 'block';
+    return;
+  }
+  try {
+    const res = await fetch('/api/accounts/reset-confirm', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, token, new_password }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw data;
+    closeModal();
+    showToast('Password reset! You can now log in.', 'success');
+  } catch (e) {
+    errEl.textContent = (e && e.error) ? e.error : 'Reset failed. Check your token and try again.';
+    errEl.style.display = 'block';
+  }
 }
 
 function openReportModal(contentType, contentId) {

@@ -91,7 +91,7 @@ function navigate(section) {
   } else {
     fab.style.display = 'none';
   }
-  const renders = { feed: renderFeed, community: renderCommunity, marketplace: renderMarketplace, lostandfound: renderLostFound, announcements: renderAnnouncements, institutions: renderInstitutions, features: renderFeatureHub };
+  const renders = { feed: renderFeed, community: renderCommunity, marketplace: renderMarketplace, lostandfound: renderLostFound, announcements: renderAnnouncements, institutions: renderInstitutions, features: renderFeatureHub, messages: renderMessages, roommates: renderRoommates, learning: renderLearning };
   renders[section]();
 }
 

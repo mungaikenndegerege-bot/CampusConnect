@@ -1,11 +1,14 @@
+import hashlib
 import os
-from flask import Blueprint, request, jsonify, current_app, send_from_directory
+import uuid as _uuid_mod
+from flask import Blueprint, request, jsonify, current_app, send_from_directory, redirect
 from werkzeug.utils import secure_filename
 from datetime import datetime
 from app import db
 from app.models import (
     Post, Comment, MarketplaceItem, LostFoundItem, Announcement, Ad, Report,
-    AdminSession, Institution, InstitutionCategory, InstitutionPost, FeaturePost
+    AdminSession, Institution, InstitutionCategory, InstitutionPost, FeaturePost,
+    RoommateListing, LearningResource,
 )
 from app.ratelimit import check_rate_limit
 
@@ -522,3 +525,220 @@ def create_report():
     db.session.add(report)
     db.session.commit()
     return jsonify({'ok': True}), 201
+
+
+# ---------------------------------------------------------------------------
+# Roommate Finder
+# ---------------------------------------------------------------------------
+
+def _roommate_owner_token():
+    """Generate a short owner token and return (plain, hashed)."""
+    import secrets as _secrets
+    plain = _secrets.token_urlsafe(24)
+    hashed = hashlib.sha256(plain.encode()).hexdigest()
+    return plain, hashed
+
+
+@public_bp.route('/api/roommates', methods=['GET'])
+def list_roommates():
+    page = request.args.get('page', 1, type=int)
+    per_page = 12
+    q = RoommateListing.query.filter_by(active=True)
+    location = request.args.get('location', '').strip()
+    gender_pref = request.args.get('gender_preference', '').strip()
+    if location:
+        q = q.filter(RoommateListing.location.ilike(f'%{location}%'))
+    if gender_pref and gender_pref != 'Any':
+        q = q.filter(RoommateListing.gender_preference == gender_pref)
+    total = q.count()
+    items = q.order_by(RoommateListing.created_at.desc()).offset((page - 1) * per_page).limit(per_page).all()
+    return jsonify({
+        'items': [i.to_dict() for i in items],
+        'total': total,
+        'page': page,
+        'pages': (total + per_page - 1) // per_page,
+    })
+
+
+@public_bp.route('/api/roommates', methods=['POST'])
+@check_rate_limit(3, 3600)
+def create_roommate():
+    d = request.get_json(silent=True) or {}
+    required = ('poster_name', 'poster_contact', 'location', 'description')
+    for field in required:
+        if not d.get(field):
+            return jsonify({'error': f'{field} is required.'}), 400
+    plain_token, hashed_token = _roommate_owner_token()
+    listing = RoommateListing(
+        poster_name=str(d['poster_name'])[:100],
+        poster_contact=str(d['poster_contact'])[:100],
+        institution=str(d.get('institution', ''))[:200] or None,
+        location=str(d['location'])[:200],
+        budget_min=int(d.get('budget_min') or 0),
+        budget_max=int(d.get('budget_max') or 0),
+        description=str(d['description']),
+        gender_preference=str(d.get('gender_preference', 'Any'))[:20],
+        move_in_date=str(d.get('move_in_date', ''))[:50] or None,
+        owner_token_hash=hashed_token,
+    )
+    db.session.add(listing)
+    db.session.commit()
+    result = listing.to_dict()
+    result['owner_token'] = plain_token
+    return jsonify(result), 201
+
+
+@public_bp.route('/api/roommates/<int:rid>', methods=['PUT'])
+def update_roommate(rid):
+    listing = RoommateListing.query.get_or_404(rid)
+    token = request.headers.get('X-Owner-Token', '')
+    hashed = hashlib.sha256(token.encode()).hexdigest() if token else ''
+    if not token or listing.owner_token_hash != hashed:
+        return jsonify({'error': 'Forbidden'}), 403
+    d = request.get_json(silent=True) or {}
+    if 'location' in d:
+        listing.location = str(d['location'])[:200]
+    if 'description' in d:
+        listing.description = str(d['description'])
+    if 'budget_min' in d:
+        listing.budget_min = int(d['budget_min'] or 0)
+    if 'budget_max' in d:
+        listing.budget_max = int(d['budget_max'] or 0)
+    if 'gender_preference' in d:
+        listing.gender_preference = str(d['gender_preference'])[:20]
+    if 'move_in_date' in d:
+        listing.move_in_date = str(d['move_in_date'])[:50] or None
+    if 'active' in d:
+        listing.active = bool(d['active'])
+    db.session.commit()
+    return jsonify(listing.to_dict())
+
+
+@public_bp.route('/api/roommates/<int:rid>', methods=['DELETE'])
+def delete_roommate(rid):
+    listing = RoommateListing.query.get_or_404(rid)
+    token = request.headers.get('X-Owner-Token', '')
+    hashed = hashlib.sha256(token.encode()).hexdigest() if token else ''
+    if not token or listing.owner_token_hash != hashed:
+        return jsonify({'error': 'Forbidden'}), 403
+    listing.active = False
+    db.session.commit()
+    return jsonify({'ok': True})
+
+
+# ---------------------------------------------------------------------------
+# Learning Hub
+# ---------------------------------------------------------------------------
+
+LEARN_ALLOWED_EXTS = {'pdf', 'doc', 'docx', 'jpg', 'jpeg', 'png'}
+LEARN_MAX_SIZE = 20 * 1024 * 1024  # 20 MB
+VALID_RESOURCE_TYPES = {'notes', 'past_paper', 'textbook', 'other'}
+
+
+def _learn_owner_token():
+    import secrets as _secrets
+    plain = _secrets.token_urlsafe(24)
+    hashed = hashlib.sha256(plain.encode()).hexdigest()
+    return plain, hashed
+
+
+@public_bp.route('/api/learn', methods=['GET'])
+def list_learn():
+    page = request.args.get('page', 1, type=int)
+    per_page = 12
+    q = LearningResource.query.filter_by(active=True)
+    subject = request.args.get('subject', '').strip()
+    resource_type = request.args.get('resource_type', '').strip()
+    search = request.args.get('q', '').strip()
+    if subject:
+        q = q.filter(LearningResource.subject.ilike(f'%{subject}%'))
+    if resource_type and resource_type in VALID_RESOURCE_TYPES:
+        q = q.filter(LearningResource.resource_type == resource_type)
+    if search:
+        pattern = f'%{search}%'
+        q = q.filter(db.or_(
+            LearningResource.title.ilike(pattern),
+            LearningResource.description.ilike(pattern),
+            LearningResource.subject.ilike(pattern),
+        ))
+    total = q.count()
+    items = q.order_by(LearningResource.created_at.desc()).offset((page - 1) * per_page).limit(per_page).all()
+    return jsonify({
+        'items': [i.to_dict() for i in items],
+        'total': total,
+        'page': page,
+        'pages': (total + per_page - 1) // per_page,
+    })
+
+
+@public_bp.route('/api/learn', methods=['POST'])
+@check_rate_limit(5, 3600)
+def upload_learn():
+    if 'file' not in request.files or not request.files['file'].filename:
+        return jsonify({'error': 'A file is required.'}), 400
+    f = request.files['file']
+    ext = f.filename.rsplit('.', 1)[-1].lower() if '.' in f.filename else ''
+    if ext not in LEARN_ALLOWED_EXTS:
+        return jsonify({'error': f'File type not allowed. Use: {", ".join(LEARN_ALLOWED_EXTS)}'}), 400
+    f.seek(0, 2)
+    size = f.tell()
+    f.seek(0)
+    if size > LEARN_MAX_SIZE:
+        return jsonify({'error': 'File too large (max 20 MB).'}), 400
+
+    d = request.form
+    required = ('title', 'subject', 'resource_type', 'uploader_name')
+    for field in required:
+        if not d.get(field):
+            return jsonify({'error': f'{field} is required.'}), 400
+    if d['resource_type'] not in VALID_RESOURCE_TYPES:
+        return jsonify({'error': f'resource_type must be one of: {", ".join(VALID_RESOURCE_TYPES)}'}), 400
+
+    filename = _uuid_mod.uuid4().hex + '.' + ext
+    f.save(os.path.join(current_app.config['UPLOAD_FOLDER'], filename))
+
+    if ext in ('jpg', 'jpeg', 'png'):
+        file_type = 'image'
+    else:
+        file_type = ext  # pdf / doc / docx
+
+    plain_token, hashed_token = _learn_owner_token()
+    resource = LearningResource(
+        title=str(d['title'])[:200],
+        description=str(d.get('description', ''))[:2000] or None,
+        subject=str(d['subject'])[:100],
+        resource_type=str(d['resource_type'])[:30],
+        institution_name=str(d.get('institution_name', ''))[:200] or None,
+        file_path=filename,
+        file_type=file_type,
+        uploader_name=str(d['uploader_name'])[:100],
+        uploader_contact=str(d.get('uploader_contact', ''))[:100] or None,
+        owner_token_hash=hashed_token,
+    )
+    db.session.add(resource)
+    db.session.commit()
+    result = resource.to_dict()
+    result['owner_token'] = plain_token
+    return jsonify(result), 201
+
+
+@public_bp.route('/api/learn/<int:rid>/download', methods=['GET'])
+def download_learn(rid):
+    resource = LearningResource.query.get_or_404(rid)
+    if not resource.active:
+        return jsonify({'error': 'Not found.'}), 404
+    resource.download_count += 1
+    db.session.commit()
+    return redirect(f'/api/uploads/{resource.file_path}', code=302)
+
+
+@public_bp.route('/api/learn/<int:rid>', methods=['DELETE'])
+def delete_learn(rid):
+    resource = LearningResource.query.get_or_404(rid)
+    token = request.headers.get('X-Owner-Token', '')
+    hashed = hashlib.sha256(token.encode()).hexdigest() if token else ''
+    if not token or resource.owner_token_hash != hashed:
+        return jsonify({'error': 'Forbidden'}), 403
+    resource.active = False
+    db.session.commit()
+    return jsonify({'ok': True})
