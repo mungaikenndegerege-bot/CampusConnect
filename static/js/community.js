@@ -31,6 +31,10 @@ async function loadCommunityPosts(reset) {
     mc.querySelectorAll('.toggle-comments').forEach(btn => {
       btn.addEventListener('click', () => toggleComments(btn));
     });
+    // Attach reaction buttons
+    mc.querySelectorAll('.reaction-btn').forEach(btn => {
+      btn.addEventListener('click', () => addReaction(btn.dataset.type, btn.dataset.target, parseInt(btn.dataset.id)));
+    });
   } catch(e) {
     mc.innerHTML = '<div class="empty-state"><div class="empty-icon">&#128565;</div><p>Could not load posts.</p></div>';
   }
@@ -50,6 +54,11 @@ function renderCommunityCard(p) {
     <div class="card-actions">
       <button class="btn-edit" onclick="editPost(${p.id})">&#9998;&#65039; Edit</button>
       <button class="toggle-comments" data-id="${p.id}" data-count="${p.comment_count}">${p.comment_count > 0 ? `View ${p.comment_count} comment${p.comment_count !== 1 ? 's' : ''}` : 'Add a comment'}</button>
+    </div>
+    <div class="reactions-bar">
+      <button class="reaction-btn" data-type="like" data-target="post" data-id="${p.id}">&#128077; Like</button>
+      <button class="reaction-btn" data-type="celebrate" data-target="post" data-id="${p.id}">&#127881; Celebrate</button>
+      <button class="reaction-btn" data-type="support" data-target="post" data-id="${p.id}">&#10084; Support</button>
     </div>
     <div class="comments-section" id="comments-${p.id}" style="display:none"></div>
   </div>`;
@@ -112,6 +121,7 @@ async function submitCommunityPost() {
   const fileInput = document.getElementById('post-attachment');
   const file = fileInput && fileInput.files && fileInput.files[0];
   try {
+    let created;
     if (file) {
       const fd = new FormData();
       fd.append('poster_name', name);
@@ -120,10 +130,12 @@ async function submitCommunityPost() {
       fd.append('title', title);
       fd.append('body', body);
       fd.append('attachment', file);
-      await api('POST', '/api/posts', fd, true);
+      created = await api('POST', '/api/posts', fd, true, idempotencyHeaders('post'));
     } else {
-      await api('POST', '/api/posts', { poster_name: name, poster_contact: contact, topic, title, body });
+      created = await api('POST', '/api/posts', { poster_name: name, poster_contact: contact, topic, title, body }, false, idempotencyHeaders('post'));
     }
+    rememberContentOwnerToken('post', created.id, created.owner_token);
+    completeIdempotentSubmission('post');
     closeModal();
     showToast('Post published!', 'success');
     renderCommunity();
@@ -135,27 +147,29 @@ function editPost(pid) {
   const title = card ? card.dataset.postTitle : '';
   const body = card ? card.dataset.postBody : '';
   const topic = card ? card.dataset.postTopic : 'General';
-  const name = prompt('Enter your name to edit:');
-  if (!name) return;
+  const ownerToken = getContentOwnerToken('post', pid) || prompt('Enter this post\'s edit token:');
+  if (!ownerToken) return;
   openModal(`<div class="form-title">&#9998;&#65039; Edit Post</div>
+    <input type="hidden" id="edit-owner-token" value="${escHtml(ownerToken)}">
     <div class="form-group"><label>Topic</label><select id="ep-topic"><option${topic==='General'?' selected':''}>General</option><option${topic==='Academic'?' selected':''}>Academic</option><option${topic==='Study Groups'?' selected':''}>Study Groups</option><option${topic==='Q&A'?' selected':''}>Q&amp;A</option></select></div>
     <div class="form-group"><label>Title *</label><input type="text" id="ep-title" value="${escHtml(title)}"></div>
     <div class="form-group"><label>Message *</label><textarea id="ep-body">${escHtml(body)}</textarea></div>
-    <button class="btn-primary" onclick="submitEditPost(${pid}, '${escHtml(name)}')">Save Changes</button>`);
+    <button class="btn-primary" onclick="submitEditPost(${pid})">Save Changes</button>`);
 }
 
-async function submitEditPost(pid, poster_name) {
+async function submitEditPost(pid) {
+  const owner_token = document.getElementById('edit-owner-token').value;
   const title = document.getElementById('ep-title').value.trim();
   const body = document.getElementById('ep-body').value.trim();
   const topic = document.getElementById('ep-topic').value;
   if (!title || !body) { showToast('Title and message are required.', 'error'); return; }
   try {
-    await api('PUT', `/api/posts/${pid}`, { poster_name, title, body, topic });
+    await api('PUT', `/api/posts/${pid}`, { owner_token, title, body, topic });
     closeModal();
     showToast('Post updated!', 'success');
     renderCommunity();
   } catch(e) {
-    if (e.status === 403) { showToast('Name does not match the original poster', 'error'); }
+    if (e.status === 403) { showToast('The edit token is missing or invalid.', 'error'); }
     else { showToast('Could not update post.', 'error'); }
   }
 }

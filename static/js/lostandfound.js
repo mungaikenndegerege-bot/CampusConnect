@@ -61,7 +61,9 @@ async function submitLFItem() {
   const location = document.getElementById('lf-location').value.trim();
   if (!name || !contact || !title || !desc || !location) { showToast('All fields are required.', 'error'); return; }
   try {
-    await api('POST', '/api/lostandfound', { poster_name: name, poster_contact: contact, item_type: type, title, description: desc, location });
+    const created = await api('POST', '/api/lostandfound', { poster_name: name, poster_contact: contact, item_type: type, title, description: desc, location }, false, idempotencyHeaders('lostandfound'));
+    rememberContentOwnerToken('lostandfound', created.id, created.owner_token);
+    completeIdempotentSubmission('lostandfound');
     closeModal();
     showToast('Report submitted!', 'success');
     renderLostFound();
@@ -74,29 +76,31 @@ function editLFItem(lid) {
   const desc = card ? card.dataset.lfDesc : '';
   const location = card ? card.dataset.lfLocation : '';
   const itype = card ? card.dataset.lfType : 'lost';
-  const name = prompt('Enter your name to edit:');
-  if (!name) return;
+  const ownerToken = getContentOwnerToken('lostandfound', lid) || prompt('Enter this report\'s edit token:');
+  if (!ownerToken) return;
   openModal(`<div class="form-title">&#9998;&#65039; Edit Report</div>
+    <input type="hidden" id="edit-owner-token" value="${escHtml(ownerToken)}">
     <div class="form-group"><label>Type *</label><select id="el-type"><option value="lost"${itype==='lost'?' selected':''}>I Lost Something</option><option value="found"${itype==='found'?' selected':''}>I Found Something</option></select></div>
     <div class="form-group"><label>Item Title *</label><input type="text" id="el-title" value="${escHtml(title)}"></div>
     <div class="form-group"><label>Description *</label><textarea id="el-desc">${escHtml(desc)}</textarea></div>
     <div class="form-group"><label>Location *</label><input type="text" id="el-location" value="${escHtml(location)}"></div>
-    <button class="btn-primary" onclick="submitEditLF(${lid}, '${escHtml(name)}')">Save Changes</button>`);
+    <button class="btn-primary" onclick="submitEditLF(${lid})">Save Changes</button>`);
 }
 
-async function submitEditLF(lid, poster_name) {
+async function submitEditLF(lid) {
+  const owner_token = document.getElementById('edit-owner-token').value;
   const title = document.getElementById('el-title').value.trim();
   const description = document.getElementById('el-desc').value.trim();
   const location = document.getElementById('el-location').value.trim();
   const item_type = document.getElementById('el-type').value;
   if (!title || !description || !location) { showToast('All fields are required.', 'error'); return; }
   try {
-    await api('PUT', `/api/lostandfound/${lid}`, { poster_name, title, description, location, item_type });
+    await api('PUT', `/api/lostandfound/${lid}`, { owner_token, title, description, location, item_type });
     closeModal();
     showToast('Report updated!', 'success');
     renderLostFound();
   } catch(e) {
-    if (e.status === 403) { showToast('Name does not match the original poster', 'error'); }
+    if (e.status === 403) { showToast('The edit token is missing or invalid.', 'error'); }
     else { showToast('Could not update report.', 'error'); }
   }
 }

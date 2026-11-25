@@ -1,33 +1,24 @@
-import os
-import uuid
 import secrets
 import csv
 import io
 from datetime import datetime, timedelta
 from flask import Blueprint, request, jsonify, current_app, Response
 from werkzeug.security import generate_password_hash, check_password_hash
-from werkzeug.utils import secure_filename
 from sqlalchemy.orm import joinedload
 from sqlalchemy import func
 from app import db
 from app.models import (Advertiser, AdvertiserSession, AdPlacement, AdCampaign,
                         Advertisement, AdDailyStat, AdPayment)
+from app.ratelimit import check_rate_limit
+from app.storage import upload_asset
 from datetime import date as _date, timedelta as _timedelta
 
 advertiser_bp = Blueprint('advertiser_bp', __name__)
 
 
-def _allowed_file(filename):
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in current_app.config['ALLOWED_EXTENSIONS']
-
-
 def save_upload(file):
-    if file and _allowed_file(file.filename):
-        ext = secure_filename(file.filename).rsplit('.', 1)[1].lower()
-        filename = uuid.uuid4().hex + '.' + ext
-        file.save(os.path.join(current_app.config['UPLOAD_FOLDER'], filename))
-        return filename
-    return None
+    return upload_asset(file, 'advertisement', 5 * 1024 * 1024,
+                        {'jpg', 'jpeg', 'png', 'webp'})
 
 
 def require_advertiser():
@@ -80,6 +71,7 @@ def adv_register():
 
 
 @advertiser_bp.route('/api/advertiser/login', methods=['POST'])
+@check_rate_limit(10, 900)
 def adv_login():
     d = request.get_json(silent=True) or {}
     email = (d.get('email') or '').strip().lower()

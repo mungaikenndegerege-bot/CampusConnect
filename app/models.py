@@ -11,10 +11,15 @@ class Post(db.Model):
     body = db.Column(db.Text, nullable=False)
     topic = db.Column(db.String(50), default='General')
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     deleted = db.Column(db.Boolean, default=False)
     file_path = db.Column(db.String(300), nullable=True)
     file_type = db.Column(db.String(20), nullable=True)
+    owner_token_hash = db.Column(db.String(64), nullable=True, index=True)
     comments = db.relationship('Comment', backref='post', lazy=True)
+    __table_args__ = (
+        db.Index('ix_post_visible_created', 'deleted', 'created_at'),
+    )
 
 class Comment(db.Model):
     __tablename__ = 'comment'
@@ -22,7 +27,11 @@ class Comment(db.Model):
     post_id = db.Column(db.Integer, db.ForeignKey('post.id'), nullable=False)
     poster_name = db.Column(db.String(100), nullable=False)
     body = db.Column(db.Text, nullable=False)
+    parent_id = db.Column(db.Integer, db.ForeignKey('comment.id', ondelete='CASCADE'), nullable=True, index=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    replies = db.relationship('Comment', backref=db.backref('parent', remote_side='Comment.id'), lazy=True)
+    __table_args__ = (db.Index('ix_comment_post_created', 'post_id', 'created_at'),)
 
 class MarketplaceItem(db.Model):
     __tablename__ = 'marketplace_item'
@@ -37,6 +46,10 @@ class MarketplaceItem(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     sold = db.Column(db.Boolean, default=False)
     deleted = db.Column(db.Boolean, default=False)
+    owner_token_hash = db.Column(db.String(64), nullable=True, index=True)
+    __table_args__ = (
+        db.Index('ix_marketplace_visible_created', 'deleted', 'sold', 'created_at'),
+    )
 
 class LostFoundItem(db.Model):
     __tablename__ = 'lost_found_item'
@@ -50,6 +63,10 @@ class LostFoundItem(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     resolved = db.Column(db.Boolean, default=False)
     deleted = db.Column(db.Boolean, default=False)
+    owner_token_hash = db.Column(db.String(64), nullable=True, index=True)
+    __table_args__ = (
+        db.Index('ix_lost_found_visible_created', 'deleted', 'resolved', 'created_at'),
+    )
 
 class Announcement(db.Model):
     __tablename__ = 'announcement'
@@ -58,6 +75,9 @@ class Announcement(db.Model):
     body = db.Column(db.Text, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     pinned = db.Column(db.Boolean, default=False)
+    __table_args__ = (
+        db.Index('ix_announcement_pinned_created', 'pinned', 'created_at'),
+    )
 
 class Ad(db.Model):
     __tablename__ = 'ad'
@@ -85,6 +105,8 @@ class Account(db.Model):
     bio = db.Column(db.Text)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     active = db.Column(db.Boolean, default=True)
+    institution_id = db.Column(db.Integer, db.ForeignKey('institutions.id'), nullable=True)
+    institution = db.relationship('Institution', foreign_keys=[institution_id])
     sessions = db.relationship('AccountSession', backref='account', lazy=True)
 
 class AccountSession(db.Model):
@@ -130,6 +152,7 @@ class Institution(db.Model):
     active = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     category = db.relationship('InstitutionCategory', backref='institutions')
+    __table_args__ = (db.Index('ix_institution_active_name', 'active', 'name'),)
 
     def to_dict(self):
         return {
@@ -173,16 +196,18 @@ class InstitutionPost(db.Model):
     deleted = db.Column(db.Boolean, default=False)
     file_path = db.Column(db.String(300), nullable=True)
     file_type = db.Column(db.String(20), nullable=True)
+    owner_token_hash = db.Column(db.String(64), nullable=True, index=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     def to_dict(self):
+        from app.storage import asset_url
         return {
             'id': self.id, 'institution_id': self.institution_id,
             'community_id': self.community_id,
             'poster_name': self.poster_name, 'poster_contact': self.poster_contact,
             'title': self.title, 'body': self.body, 'topic': self.topic,
             'deleted': self.deleted,
-            'file_url': f'/api/uploads/{self.file_path}' if self.file_path else None,
+            'file_url': asset_url(self.file_path),
             'file_type': self.file_type,
             'created_at': self.created_at.isoformat() if self.created_at else None
         }
@@ -192,7 +217,7 @@ class InstitutionPostComment(db.Model):
     __tablename__ = 'institution_post_comments'
     id = db.Column(db.Integer, primary_key=True)
     post_id = db.Column(db.Integer, db.ForeignKey('institution_posts.id'))
-    poster_name = db.Column(db.String(100), nullable=False)
+    poster_name = db.Column(db.String(100))
     body = db.Column(db.Text, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
@@ -297,11 +322,12 @@ class Advertisement(db.Model):
     placement    = db.relationship('AdPlacement', backref='advertisements')
 
     def to_dict(self):
+        from app.storage import asset_url
         return {
             'id': self.id, 'campaign_id': self.campaign_id,
             'placement_id': self.placement_id,
             'title': self.title, 'body': self.body,
-            'image_path': self.image_path, 'link_url': self.link_url,
+            'image_path': asset_url(self.image_path), 'link_url': self.link_url,
             'status': self.status,
             'created_at': self.created_at.isoformat() if self.created_at else None
         }
@@ -362,6 +388,91 @@ class AdDailyStat(db.Model):
             'impressions': self.impressions, 'unique_reach': self.unique_reach,
             'clicks': self.clicks
         }
+
+
+class Event(db.Model):
+    __tablename__ = 'events'
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String(200), nullable=False)
+    description = db.Column(db.Text, nullable=False)
+    institution_id = db.Column(db.Integer, db.ForeignKey('institutions.id'), nullable=True, index=True)
+    venue = db.Column(db.String(200), nullable=False)
+    starts_at = db.Column(db.DateTime, nullable=False, index=True)
+    ends_at = db.Column(db.DateTime, nullable=True)
+    poster_name = db.Column(db.String(100), nullable=False)
+    contact = db.Column(db.String(100), nullable=True)
+    poster_path = db.Column(db.String(300), nullable=True)
+    active = db.Column(db.Boolean, nullable=False, default=True, index=True)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, index=True)
+    updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+    owner_token_hash = db.Column(db.String(64), nullable=True, index=True)
+    institution = db.relationship('Institution')
+    __table_args__ = (db.Index('ix_event_active_starts', 'active', 'starts_at'),)
+
+
+class Opportunity(db.Model):
+    __tablename__ = 'opportunities'
+    id = db.Column(db.Integer, primary_key=True)
+    opportunity_type = db.Column(db.String(20), nullable=False, index=True)
+    title = db.Column(db.String(200), nullable=False)
+    organization = db.Column(db.String(200), nullable=False)
+    description = db.Column(db.Text, nullable=False)
+    location = db.Column(db.String(200), nullable=True)
+    application_url = db.Column(db.String(500), nullable=True)
+    institution_id = db.Column(db.Integer, db.ForeignKey('institutions.id'), nullable=True, index=True)
+    closes_at = db.Column(db.DateTime, nullable=True, index=True)
+    poster_name = db.Column(db.String(100), nullable=False)
+    active = db.Column(db.Boolean, nullable=False, default=True, index=True)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, index=True)
+    updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+    owner_token_hash = db.Column(db.String(64), nullable=True, index=True)
+    institution = db.relationship('Institution')
+    __table_args__ = (
+        db.Index('ix_opportunity_active_created', 'active', 'created_at'),
+    )
+
+
+class Reaction(db.Model):
+    __tablename__ = 'reactions'
+    id = db.Column(db.Integer, primary_key=True)
+    account_id = db.Column(db.Integer, db.ForeignKey('account.id'), nullable=False, index=True)
+    target_type = db.Column(db.String(30), nullable=False)
+    target_id = db.Column(db.Integer, nullable=False)
+    reaction_type = db.Column(db.String(20), nullable=False, default='like')
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    account = db.relationship('Account')
+    __table_args__ = (
+        db.UniqueConstraint('account_id', 'target_type', 'target_id', name='uq_reaction_account_target'),
+        db.CheckConstraint("target_type IN ('post', 'institution_post', 'event', 'opportunity')",
+                           name='ck_reaction_target_type'),
+        db.CheckConstraint("reaction_type IN ('like', 'celebrate', 'support')",
+                           name='ck_reaction_type'),
+    )
+
+
+class Notification(db.Model):
+    __tablename__ = 'notifications'
+    id = db.Column(db.Integer, primary_key=True)
+    account_id = db.Column(db.Integer, db.ForeignKey('account.id'), nullable=False, index=True)
+    title = db.Column(db.String(200), nullable=False)
+    body = db.Column(db.String(1000), nullable=False)
+    target_url = db.Column(db.String(500), nullable=True)
+    read_at = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, index=True)
+    account = db.relationship('Account')
+
+
+class IdempotencyRecord(db.Model):
+    __tablename__ = 'idempotency_records'
+    id = db.Column(db.Integer, primary_key=True)
+    resource_type = db.Column(db.String(40), nullable=False)
+    key_hash = db.Column(db.String(64), nullable=False)
+    resource_id = db.Column(db.Integer, nullable=False)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, index=True)
+    __table_args__ = (
+        db.UniqueConstraint('resource_type', 'key_hash', name='uq_idempotency_resource_key'),
+        db.Index('ix_idempotency_resource', 'resource_type', 'resource_id'),
+    )
 
 
 class AdPayment(db.Model):

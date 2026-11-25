@@ -1,31 +1,25 @@
-import uuid
+import os
+import secrets
+import hmac
 from datetime import datetime, timedelta
-from flask import Blueprint, request, jsonify, current_app
+from flask import Blueprint, request, jsonify
 from app import db
 from app.models import (Ad, Announcement, Post, MarketplaceItem, LostFoundItem,
                         AdminSession, Report,
-                        Advertiser, AdCampaign, Advertisement, AdPlacement, AdPayment, AdDailyStat)
+                        Advertiser, AdCampaign, Advertisement, AdPlacement, AdPayment, AdDailyStat,
+                        Account, AccountSession, Event, Opportunity)
+from app.storage import asset_url, upload_asset
 from app.ratelimit import check_rate_limit
-import os
-from werkzeug.utils import secure_filename
-from werkzeug.security import check_password_hash
 
 admin_bp = Blueprint('admin_bp', __name__)
 
-def allowed_file(filename):
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in current_app.config['ALLOWED_EXTENSIONS']
-
 def save_upload(file):
-    if file and allowed_file(file.filename):
-        ext = file.filename.rsplit('.', 1)[1].lower()
-        filename = uuid.uuid4().hex + '.' + ext
-        file.save(os.path.join(current_app.config['UPLOAD_FOLDER'], filename))
-        return filename
-    return None
+    return upload_asset(file, 'advertisement', 5 * 1024 * 1024,
+                        {'jpg', 'jpeg', 'png', 'webp'})
 
 def require_admin():
     token = request.headers.get('X-Admin-Token')
-    if not token or not token.startswith('v2_'):
+    if not token:
         return None
     cutoff = datetime.utcnow() - timedelta(hours=24)
     session = AdminSession.query.filter(
@@ -35,24 +29,25 @@ def require_admin():
     return session
 
 def ad_to_dict(a):
-    return {'id': a.id, 'title': a.title, 'body': a.body, 'image_path': a.image_path,
+    return {'id': a.id, 'title': a.title, 'body': a.body, 'image_path': asset_url(a.image_path),
             'link_url': a.link_url, 'active': a.active, 'click_count': a.click_count,
             'created_at': a.created_at.isoformat()}
 
 @admin_bp.route('/api/admin/login', methods=['POST'])
-@check_rate_limit(5, 900)
+@check_rate_limit(10, 900)
 def admin_login():
-    d = request.get_json(silent=True)
-    if not current_app.config.get('ADMIN_USERNAME') \
-            or not current_app.config.get('ADMIN_PASSWORD_HASH'):
-        current_app.logger.error('Admin login is disabled because credentials are not configured.')
-        return jsonify({'error': 'Admin login is not configured.'}), 503
-    if not isinstance(d, dict) \
-            or d.get('username') != current_app.config['ADMIN_USERNAME'] \
-            or not isinstance(d.get('password'), str) \
-            or not check_password_hash(current_app.config['ADMIN_PASSWORD_HASH'], d['password']):
+    d = request.get_json(silent=True) or {}
+    username = os.environ.get('ADMIN_USERNAME', '')
+    password = os.environ.get('ADMIN_PASSWORD', '')
+    if not username or not password:
+        return jsonify({'error': 'Admin login is not configured'}), 503
+    submitted_username = d.get('username')
+    submitted_password = d.get('password')
+    if (not isinstance(submitted_username, str) or not isinstance(submitted_password, str)
+            or not hmac.compare_digest(submitted_username, username)
+            or not hmac.compare_digest(submitted_password, password)):
         return jsonify({'error': 'Invalid credentials'}), 401
-    token = 'v2_' + uuid.uuid4().hex
+    token = secrets.token_urlsafe(32)
     s = AdminSession(token=token)
     db.session.add(s); db.session.commit()
     return jsonify({'token': token})
@@ -183,6 +178,63 @@ def list_reports():
                 entry['content_preview'] = item.title
         result.append(entry)
     return jsonify(result)
+
+
+@admin_bp.route('/api/admin/stats', methods=['GET'])
+def platform_stats():
+    if not require_admin():
+        return jsonify({'error': 'Unauthorized'}), 401
+    return jsonify({
+        'accounts': Account.query.count(),
+        'active_accounts': Account.query.filter_by(active=True).count(),
+        'posts': Post.query.filter_by(deleted=False).count(),
+        'marketplace_listings': MarketplaceItem.query.filter_by(deleted=False).count(),
+        'lost_found_reports': LostFoundItem.query.filter_by(deleted=False).count(),
+        'events': Event.query.filter_by(active=True).count(),
+        'opportunities': Opportunity.query.filter_by(active=True).count(),
+        'pending_reports': Report.query.filter_by(resolved=False).count(),
+        'pending_campaigns': AdCampaign.query.filter_by(status='pending').count(),
+    })
+
+
+@admin_bp.route('/api/admin/accounts', methods=['GET'])
+def list_accounts():
+    if not require_admin():
+        return jsonify({'error': 'Unauthorized'}), 401
+    page = max(1, request.args.get('page', 1, type=int))
+    per_page = min(100, max(1, request.args.get('per_page', 50, type=int)))
+    query = Account.query.order_by(Account.created_at.desc())
+    total = query.count()
+    accounts = query.offset((page - 1) * per_page).limit(per_page).all()
+    return jsonify({
+        'items': [{
+            'id': account.id,
+            'name': account.name,
+            'email': account.email,
+            'institution_id': account.institution_id,
+            'institution_name': account.institution.name if account.institution else None,
+            'active': account.active,
+            'created_at': account.created_at.isoformat(),
+        } for account in accounts],
+        'total': total,
+        'page': page,
+        'pages': (total + per_page - 1) // per_page,
+    })
+
+
+@admin_bp.route('/api/admin/accounts/<int:account_id>/status', methods=['PUT'])
+def set_account_status(account_id):
+    if not require_admin():
+        return jsonify({'error': 'Unauthorized'}), 401
+    account = Account.query.get_or_404(account_id)
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict) or not isinstance(data.get('active'), bool):
+        return jsonify({'error': 'active must be a boolean.'}), 400
+    account.active = data['active']
+    if not account.active:
+        AccountSession.query.filter_by(account_id=account.id).delete()
+    db.session.commit()
+    return jsonify({'id': account.id, 'active': account.active})
 
 @admin_bp.route('/api/admin/reports/<int:rid>/resolve', methods=['POST'])
 def resolve_report(rid):

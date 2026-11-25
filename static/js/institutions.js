@@ -430,6 +430,7 @@ function openInstPostForm(institutionId) {
     }
     const fileInput = document.getElementById('ip-attachment');
     const file = fileInput && fileInput.files && fileInput.files[0];
+    const requestHeaders = idempotencyHeaders('institution_post');
     try {
       if (file) {
         const fd = new FormData();
@@ -441,17 +442,23 @@ function openInstPostForm(institutionId) {
         fd.append('attachment', file);
         const res = await fetch(`/api/institutions/${institutionId}/posts`, {
           method: 'POST',
+          headers: requestHeaders,
           body: fd
         });
         if (!res.ok) throw new Error();
+        const created = await res.json();
+        rememberContentOwnerToken('institution_post', created.id, created.owner_token);
       } else {
         const res = await fetch(`/api/institutions/${institutionId}/posts`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: Object.assign({ 'Content-Type': 'application/json' }, requestHeaders),
           body: JSON.stringify({ poster_name, title, body, topic, poster_contact: poster_contact || undefined })
         });
         if (!res.ok) throw new Error();
+        const created = await res.json();
+        rememberContentOwnerToken('institution_post', created.id, created.owner_token);
       }
+      completeIdempotentSubmission('institution_post');
       showToast('Post created!', 'success');
       closeModal();
       instState.postPage = 1;

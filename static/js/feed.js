@@ -104,7 +104,7 @@ async function openDetailModal(id, section) {
       if (!item) { closeModal(); return; }
       openModal(`
         <div class="detail-modal">
-          ${item.image_path ? `<img src="/api/uploads/${escHtml(item.image_path)}" style="width:100%;border-radius:8px;margin-bottom:12px;max-height:220px;object-fit:cover">` : ''}
+          ${item.image_path ? `<img src="${escHtml(item.image_path)}" style="width:100%;border-radius:8px;margin-bottom:12px;max-height:220px;object-fit:cover">` : ''}
           <h3 style="margin-bottom:6px">${escHtml(item.title)}</h3>
           <div class="card-price" style="font-size:1.3rem;margin-bottom:8px">${item.price ? 'KSh ' + Number(item.price).toLocaleString() : 'Price not listed'}</div>
           <p style="color:#374151;line-height:1.6;margin-bottom:12px">${escHtml(item.description)}</p>
@@ -171,7 +171,7 @@ function renderPostCard(p) {
 
 function renderMarketCard(m) {
   return `<div class="card" data-id="${m.id}" data-section="marketplace">
-    ${m.image_path ? `<img class="card-image" src="/api/uploads/${escHtml(m.image_path)}" alt="">` : ''}
+    ${m.image_path ? `<img class="card-image" src="${escHtml(m.image_path)}" alt="">` : ''}
     <div class="card-title">${escHtml(m.title)}</div>
     <div class="card-body">${escHtml(m.description)}</div>
     ${m.price ? `<div class="card-price">KSh ${Number(m.price).toLocaleString()}</div>` : ''}

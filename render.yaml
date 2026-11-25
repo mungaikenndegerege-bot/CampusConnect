@@ -2,18 +2,21 @@ services:
   - type: web
     name: campusconnect
     env: python
-    buildCommand: pip install -r requirements.txt && python seed.py
+    buildCommand: pip install -r requirements.txt
     startCommand: gunicorn -w 2 -b 0.0.0.0:$PORT run:app
+    healthCheckPath: /health
     envVars:
       - key: SECRET_KEY
         generateValue: true
+      - key: DATABASE_URL
+        sync: false
       - key: ADMIN_USERNAME
         sync: false
-      - key: ADMIN_PASSWORD_HASH
+      - key: ADMIN_PASSWORD
         sync: false
-      - key: AI_API_KEY
+      - key: STORAGE_BACKEND
+        value: supabase
+      - key: SUPABASE_URL
         sync: false
-      - key: AI_API_BASE_URL
-        value: https://api.openai.com/v1
-      - key: AI_MODEL
-        value: gpt-4o-mini
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false

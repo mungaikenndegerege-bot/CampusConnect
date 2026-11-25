@@ -1,15 +1,28 @@
 import csv
 import io
-import os
 from datetime import datetime, timedelta
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, current_app, request, jsonify
+from sqlalchemy.exc import IntegrityError
 from app import db
 from app.models import (
     Institution, InstitutionCategory, InstitutionCommunity,
     InstitutionPost, InstitutionPostComment, AdminSession
 )
+from app.storage import StorageError, delete_asset, upload_asset
+from app.content_security import (
+    find_idempotent_record, idempotency_key_hash, issue_owner_token,
+    optional_text, remember_idempotent_record, required_text, verify_owner_token,
+)
+from app.ratelimit import check_rate_limit
 
 institutions_bp = Blueprint('institutions', __name__, url_prefix='/api/institutions')
+
+
+def _cleanup_upload(reference):
+    try:
+        delete_asset(reference)
+    except StorageError as exception:
+        current_app.logger.error('Could not clean up an unused upload: %s', exception)
 
 
 def _require_admin():
@@ -131,61 +144,83 @@ def list_inst_posts(id):
 
 
 @institutions_bp.route('/<int:id>/posts', methods=['POST'])
+@check_rate_limit(5, 3600)
 def create_inst_post(id):
-    import uuid as _uuid
     inst = Institution.query.get_or_404(id)
+    data = request.form if request.form else request.get_json(silent=True)
+    if not data:
+        return jsonify({'error': 'A JSON object is required.'}), 400
+    try:
+        poster_name = required_text(data, 'poster_name', 100, 2)
+        title = required_text(data, 'title', 200, 3)
+        body = required_text(data, 'body', 5000, 1)
+        poster_contact = optional_text(data, 'poster_contact', 100)
+        topic = optional_text(data, 'topic', 50) or 'General'
+    except ValueError as exception:
+        return jsonify({'error': str(exception)}), 400
+    raw_idempotency_key = request.headers.get('Idempotency-Key')
+    try:
+        key_hash = idempotency_key_hash('institution_post', raw_idempotency_key)
+    except ValueError as exception:
+        return jsonify({'error': str(exception)}), 400
+    existing = find_idempotent_record('institution_post', key_hash, InstitutionPost)
+    if existing:
+        response = existing.to_dict()
+        response['owner_token'] = issue_owner_token('institution_post', raw_idempotency_key)[0]
+        return jsonify(response), 200
     file_path = None
     file_type = None
-    if request.files and 'attachment' in request.files:
-        f = request.files['attachment']
-        if f and f.filename:
-            ext = f.filename.rsplit('.', 1)[-1].lower() if '.' in f.filename else ''
-            image_exts = {'jpg', 'jpeg', 'png', 'webp', 'gif'}
-            file_exts = {'pdf', 'doc', 'docx'}
-            f.seek(0, 2)
-            size = f.tell()
-            f.seek(0)
-            from flask import current_app
-            if ext in image_exts and size <= 5 * 1024 * 1024:
-                filename = _uuid.uuid4().hex + '.' + ext
-                f.save(os.path.join(current_app.config['UPLOAD_FOLDER'], filename))
-                file_path = filename
-                file_type = 'image'
-            elif ext in file_exts and size <= 10 * 1024 * 1024:
-                filename = _uuid.uuid4().hex + '.' + ext
-                f.save(os.path.join(current_app.config['UPLOAD_FOLDER'], filename))
-                file_path = filename
-                file_type = 'file'
-        data = request.form
-    else:
-        data = request.get_json() or {}
-    poster_name = (data.get('poster_name') or '').strip()
-    title = (data.get('title') or '').strip()
-    body = (data.get('body') or '').strip()
-    if not poster_name or not title:
-        return jsonify({'error': 'poster_name and title are required'}), 400
-    if not body:
-        return jsonify({'error': 'body is required'}), 400
-    comm = inst.community
-    if not comm:
-        comm = InstitutionCommunity(institution_id=inst.id)
-        db.session.add(comm)
-        db.session.flush()
-    post = InstitutionPost(
-        institution_id=inst.id,
-        community_id=comm.id,
-        poster_name=poster_name,
-        poster_contact=(data.get('poster_contact') or '').strip() or None,
-        title=title,
-        body=body,
-        topic=data.get('topic', 'General'),
-        file_path=file_path,
-        file_type=file_type
-    )
-    db.session.add(post)
-    comm.post_count = (comm.post_count or 0) + 1
-    db.session.commit()
-    return jsonify(post.to_dict()), 201
+    attachment = request.files.get('attachment')
+    if attachment and attachment.filename:
+        extension = attachment.filename.rsplit('.', 1)[-1].lower() if '.' in attachment.filename else ''
+        if extension in {'jpg', 'jpeg', 'png', 'webp', 'gif'}:
+            file_path = upload_asset(attachment, 'post_image', 5 * 1024 * 1024,
+                                     {'jpg', 'jpeg', 'png', 'webp', 'gif'})
+            file_type = 'image'
+        elif extension in {'pdf', 'doc', 'docx'}:
+            file_path = upload_asset(attachment, 'document', 10 * 1024 * 1024,
+                                     {'pdf', 'doc', 'docx'})
+            file_type = 'file'
+        else:
+            return jsonify({'error': 'This attachment type is not allowed.'}), 400
+    owner_token, owner_hash = issue_owner_token('institution_post', raw_idempotency_key)
+    try:
+        comm = inst.community
+        if not comm:
+            comm = InstitutionCommunity(institution_id=inst.id)
+            db.session.add(comm)
+            db.session.flush()
+        post = InstitutionPost(
+            institution_id=inst.id,
+            community_id=comm.id,
+            poster_name=poster_name,
+            poster_contact=poster_contact or None,
+            title=title,
+            body=body,
+            topic=topic,
+            file_path=file_path,
+            file_type=file_type,
+            owner_token_hash=owner_hash,
+        )
+        db.session.add(post)
+        comm.post_count = (comm.post_count or 0) + 1
+        remember_idempotent_record('institution_post', key_hash, post)
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        existing = find_idempotent_record('institution_post', key_hash, InstitutionPost)
+        if not existing:
+            if file_path:
+                _cleanup_upload(file_path)
+            raise
+        if file_path:
+            _cleanup_upload(file_path)
+        response = existing.to_dict()
+        response['owner_token'] = issue_owner_token('institution_post', raw_idempotency_key)[0]
+        return jsonify(response), 200
+    response = post.to_dict()
+    response['owner_token'] = owner_token
+    return jsonify(response), 201
 
 
 @institutions_bp.route('/<int:id>/join', methods=['POST'])
@@ -211,13 +246,17 @@ def list_inst_post_comments(id, pid):
 
 
 @institutions_bp.route('/<int:id>/posts/<int:pid>/comments', methods=['POST'])
+@check_rate_limit(20, 3600)
 def add_inst_post_comment(id, pid):
     post = InstitutionPost.query.filter_by(id=pid, institution_id=id).first_or_404()
-    data = request.get_json() or {}
-    poster_name = (data.get('poster_name') or '').strip()
-    body = (data.get('body') or '').strip()
-    if not poster_name or not body:
-        return jsonify({'error': 'poster_name and body are required'}), 400
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify({'error': 'A JSON object is required.'}), 400
+    try:
+        poster_name = required_text(data, 'poster_name', 100, 2)
+        body = required_text(data, 'body', 2000, 1)
+    except ValueError as exception:
+        return jsonify({'error': str(exception)}), 400
     comment = InstitutionPostComment(post_id=post.id, poster_name=poster_name, body=body)
     db.session.add(comment)
     db.session.commit()
@@ -227,16 +266,17 @@ def add_inst_post_comment(id, pid):
 @institutions_bp.route('/<int:id>/posts/<int:pid>', methods=['PUT'])
 def edit_inst_post(id, pid):
     post = InstitutionPost.query.filter_by(id=pid, institution_id=id).first_or_404()
-    data = request.get_json() or {}
-    poster_name = (data.get('poster_name') or '').strip()
-    if not poster_name or poster_name.lower() != post.poster_name.lower():
-        return jsonify({'error': 'poster_name does not match'}), 403
-    if 'title' in data and data['title']:
-        post.title = data['title'].strip()
-    if 'body' in data and data['body']:
-        post.body = data['body'].strip()
-    if 'topic' in data and data['topic']:
-        post.topic = data['topic']
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify({'error': 'A JSON object is required.'}), 400
+    if not verify_owner_token(post, data.get('owner_token')):
+        return jsonify({'error': 'Valid owner token required.'}), 403
+    try:
+        post.title = required_text(data, 'title', 200, 3)
+        post.body = required_text(data, 'body', 5000, 1)
+        post.topic = optional_text(data, 'topic', 50) or 'General'
+    except ValueError as exception:
+        return jsonify({'error': str(exception)}), 400
     db.session.commit()
     return jsonify(post.to_dict())
 

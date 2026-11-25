@@ -33,9 +33,8 @@ async function loadMarketItems(reset) {
 }
 
 function renderMarketItem(m) {
-  const filename = m.image_path ? m.image_path.split('/').pop() : null;
   return `<div class="card" data-item-id="${m.id}" data-item-title="${escHtml(m.title)}" data-item-desc="${escHtml(m.description)}" data-item-price="${escHtml(m.price || '')}" data-item-cat="${escHtml(m.category)}">
-    ${filename ? `<img class="card-image" src="/api/uploads/${escHtml(filename)}" alt="">` : ''}
+    ${m.image_path ? `<img class="card-image" src="${escHtml(m.image_path)}" alt="">` : ''}
     <div class="card-title">${escHtml(m.title)}</div>
     <div class="card-body">${escHtml(m.description)}</div>
     ${m.price ? `<div class="card-price">KSh ${escHtml(m.price)}</div>` : '<div class="card-price" style="color:var(--text-muted);font-size:0.85rem">Price negotiable</div>'}
@@ -75,7 +74,9 @@ async function submitMarketItem() {
   fd.append('category', cat);
   if (imageFile) fd.append('image', imageFile);
   try {
-    await api('POST', '/api/marketplace', fd, true);
+    const created = await api('POST', '/api/marketplace', fd, true, idempotencyHeaders('marketplace'));
+    rememberContentOwnerToken('marketplace', created.id, created.owner_token);
+    completeIdempotentSubmission('marketplace');
     closeModal();
     showToast('Item listed!', 'success');
     renderMarketplace();
@@ -88,29 +89,31 @@ function editMarketItem(mid) {
   const desc = card ? card.dataset.itemDesc : '';
   const price = card ? card.dataset.itemPrice : '';
   const cat = card ? card.dataset.itemCat : 'Other';
-  const name = prompt('Enter your name to edit:');
-  if (!name) return;
+  const ownerToken = getContentOwnerToken('marketplace', mid) || prompt('Enter this listing\'s edit token:');
+  if (!ownerToken) return;
   openModal(`<div class="form-title">&#9998;&#65039; Edit Listing</div>
+    <input type="hidden" id="edit-owner-token" value="${escHtml(ownerToken)}">
     <div class="form-group"><label>Title *</label><input type="text" id="em-title" value="${escHtml(title)}"></div>
     <div class="form-group"><label>Description *</label><textarea id="em-desc">${escHtml(desc)}</textarea></div>
     <div class="form-group"><label>Price <span class="optional-label">(leave blank if negotiable)</span></label><input type="text" id="em-price" value="${escHtml(price)}"></div>
     <div class="form-group"><label>Category</label><select id="em-cat"><option${cat==='Books'?' selected':''}>Books</option><option${cat==='Electronics'?' selected':''}>Electronics</option><option${cat==='Accessories'?' selected':''}>Accessories</option><option${cat==='Accommodation'?' selected':''}>Accommodation</option><option${cat==='Other'?' selected':''}>Other</option></select></div>
-    <button class="btn-primary" onclick="submitEditMarket(${mid}, '${escHtml(name)}')">Save Changes</button>`);
+    <button class="btn-primary" onclick="submitEditMarket(${mid})">Save Changes</button>`);
 }
 
-async function submitEditMarket(mid, poster_name) {
+async function submitEditMarket(mid) {
+  const owner_token = document.getElementById('edit-owner-token').value;
   const title = document.getElementById('em-title').value.trim();
   const description = document.getElementById('em-desc').value.trim();
   const price = document.getElementById('em-price').value.trim();
   const category = document.getElementById('em-cat').value;
   if (!title || !description) { showToast('Title and description are required.', 'error'); return; }
   try {
-    await api('PUT', `/api/marketplace/${mid}`, { poster_name, title, description, price, category });
+    await api('PUT', `/api/marketplace/${mid}`, { owner_token, title, description, price, category });
     closeModal();
     showToast('Listing updated!', 'success');
     renderMarketplace();
   } catch(e) {
-    if (e.status === 403) { showToast('Name does not match the original poster', 'error'); }
+    if (e.status === 403) { showToast('The edit token is missing or invalid.', 'error'); }
     else { showToast('Could not update listing.', 'error'); }
   }
 }
