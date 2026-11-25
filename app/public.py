@@ -14,6 +14,98 @@ public_bp = Blueprint('public_bp', __name__)
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in current_app.config['ALLOWED_EXTENSIONS']
 
+
+@public_bp.route('/api/dashboard')
+def get_dashboard():
+    """Aggregated homepage dashboard data."""
+    try:
+        from app.models import Event, Opportunity
+        # Recent community posts
+        posts = Post.query.filter_by(deleted=False)\
+            .order_by(Post.created_at.desc()).limit(5).all()
+        # Recent marketplace
+        market = MarketplaceItem.query.filter_by(deleted=False, sold=False)\
+            .order_by(MarketplaceItem.created_at.desc()).limit(4).all()
+        # Upcoming events
+        events = []
+        try:
+            events = Event.query.filter_by(active=True)\
+                .order_by(Event.starts_at.asc()).limit(3).all()
+        except Exception:
+            pass
+        # Latest opportunities
+        opps = []
+        try:
+            opps = Opportunity.query.filter_by(active=True)\
+                .order_by(Opportunity.created_at.desc()).limit(3).all()
+        except Exception:
+            pass
+        # Announcements (pinned first)
+        anns = Announcement.query\
+            .order_by(Announcement.pinned.desc(), Announcement.created_at.desc())\
+            .limit(3).all()
+        # Institution spotlight
+        institutions = Institution.query.filter_by(active=True)\
+            .order_by(Institution.name).limit(6).all()
+        # Stats
+        stats = {
+            'total_posts': Post.query.filter_by(deleted=False).count(),
+            'total_marketplace': MarketplaceItem.query.filter_by(deleted=False, sold=False).count(),
+            'total_institutions': Institution.query.filter_by(active=True).count(),
+        }
+
+        def post_dict(p):
+            return {'id': p.id, 'title': p.title, 'body': (p.body or '')[:160],
+                    'poster_name': p.poster_name, 'topic': p.topic,
+                    'created_at': p.created_at.isoformat(), 'section': 'community'}
+
+        def market_dict(m):
+            return {'id': m.id, 'title': m.title, 'description': (m.description or '')[:120],
+                    'price': m.price, 'category': m.category,
+                    'image_path': m.image_path, 'poster_name': m.poster_name,
+                    'created_at': m.created_at.isoformat(), 'section': 'marketplace'}
+
+        def event_dict(e):
+            return {'id': e.id, 'title': e.title,
+                    'description': (e.description or '')[:120],
+                    'venue': e.venue, 'poster_name': e.poster_name,
+                    'starts_at': e.starts_at.isoformat() if e.starts_at else None,
+                    'poster_path': e.poster_path, 'section': 'events'}
+
+        def opp_dict(o):
+            return {'id': o.id, 'title': o.title,
+                    'organization': o.organization,
+                    'opportunity_type': o.opportunity_type,
+                    'location': o.location,
+                    'closes_at': o.closes_at.isoformat() if o.closes_at else None,
+                    'section': 'opportunities'}
+
+        def ann_dict(a):
+            return {'id': a.id, 'title': a.title, 'body': (a.body or '')[:200],
+                    'pinned': a.pinned, 'created_at': a.created_at.isoformat()}
+
+        def inst_dict(i):
+            return {'id': i.id, 'name': i.name,
+                    'abbreviation': i.abbreviation,
+                    'county': i.county,
+                    'category': i.category.name if i.category else '',
+                    'member_count': i.community.member_count if i.community else 0}
+
+        return jsonify({
+            'posts': [post_dict(p) for p in posts],
+            'marketplace': [market_dict(m) for m in market],
+            'events': [event_dict(e) for e in events],
+            'opportunities': [opp_dict(o) for o in opps],
+            'announcements': [ann_dict(a) for a in anns],
+            'institutions': [inst_dict(i) for i in institutions],
+            'stats': stats
+        })
+    except Exception as e:
+        current_app.logger.error(f'Dashboard error: {e}')
+        return jsonify({'posts': [], 'marketplace': [], 'events': [],
+                        'opportunities': [], 'announcements': [],
+                        'institutions': [], 'stats': {}})
+
 def save_upload(file):
     if file and allowed_file(file.filename):
         filename = secure_filename(file.filename)
@@ -142,36 +234,44 @@ def search():
         lambda item: item.category.name if item.category else 'Institution'
     )
 
-    institution_posts = InstitutionPost.query.join(
-        Institution, InstitutionPost.institution_id == Institution.id
-    ).filter(
-        InstitutionPost.deleted.is_(False),
-        Institution.active.is_(True),
-        db.or_(InstitutionPost.title.ilike(pattern, escape='\\'),
-               InstitutionPost.body.ilike(pattern, escape='\\'))
-    ).order_by(InstitutionPost.created_at.desc()).limit(8).all()
-    for post in institution_posts:
-        results.append({
-            'id': post.institution_id,
-            'section': 'institution',
-            'title': post.title,
-            'body': post.body[:220],
-            'meta': f'{post.institution.name} · Community discussion'
-        })
+    # Institution community posts
+    try:
+        institution_posts = InstitutionPost.query.join(
+            Institution, InstitutionPost.institution_id == Institution.id
+        ).filter(
+            InstitutionPost.deleted.is_(False),
+            Institution.active.is_(True),
+            db.or_(InstitutionPost.title.ilike(pattern, escape='\\'),
+                   InstitutionPost.body.ilike(pattern, escape='\\'))
+        ).order_by(InstitutionPost.created_at.desc()).limit(8).all()
+        for post in institution_posts:
+            results.append({
+                'id': post.institution_id,
+                'section': 'institution',
+                'title': post.title,
+                'body': post.body[:220],
+                'meta': f'{post.institution.name} · Community discussion'
+            })
+    except Exception:
+        pass
 
-    add_results(
-        FeaturePost.query.filter(
-            FeaturePost.active.is_(True),
-            FeaturePost.kind != 'confessions',
-            db.or_(FeaturePost.title.ilike(pattern, escape='\\'),
-                   FeaturePost.body.ilike(pattern, escape='\\'),
-                   FeaturePost.location.ilike(pattern, escape='\\'),
-                   FeaturePost.category.ilike(pattern, escape='\\'))
-        ).order_by(FeaturePost.created_at.desc()),
-        'features', lambda item: item.title,
-        lambda item: item.body,
-        lambda item: item.kind.replace('_', ' ').title()
-    )
+    # Feature posts (optional module)
+    try:
+        add_results(
+            FeaturePost.query.filter(
+                FeaturePost.active.is_(True),
+                FeaturePost.kind != 'confessions',
+                db.or_(FeaturePost.title.ilike(pattern, escape='\\'),
+                       FeaturePost.body.ilike(pattern, escape='\\'),
+                       FeaturePost.location.ilike(pattern, escape='\\'),
+                       FeaturePost.category.ilike(pattern, escape='\\'))
+            ).order_by(FeaturePost.created_at.desc()),
+            'features', lambda item: item.title,
+            lambda item: item.body,
+            lambda item: item.kind.replace('_', ' ').title()
+        )
+    except Exception:
+        pass
 
     return jsonify({'results': results[:48], 'query': term})
 
